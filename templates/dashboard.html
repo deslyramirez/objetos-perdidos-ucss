@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import page_header, empty_state %}
+{% from "_macros.html" import page_header, empty_state, status_badge %}
 
 {% block title %}Panel mensual{% endblock %}
 
@@ -7,43 +7,46 @@
 {% set s = summary %}
 {% set k = s.kpis %}
 <div class="flex flex-col gap-5">
-  {% call page_header("Panel mensual", s.month_label) %}
+  <p class="page-greeting" data-greeting="{{ current_user.username }}">Hola, {{ current_user.username }}</p>
+  {% call page_header("Panel mensual", s.month_label, "bi-bar-chart-line") %}
     <a class="btn btn-primary" href="{{ url_for('main.export_csv', mes=s.mes) }}">
       <i class="bi bi-download" aria-hidden="true"></i> Exportar mes (CSV)
     </a>
   {% endcall %}
 
-  <section class="card" aria-labelledby="month-navigation-title">
-    <div class="card-body flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+  <section class="card month-bar" aria-labelledby="month-navigation-title">
+    <div class="month-bar__intro">
+      <span class="month-bar__icon" aria-hidden="true"><i class="bi bi-calendar3"></i></span>
       <div>
-        <h2 id="month-navigation-title" class="text-base font-semibold text-slate-900">Seleccionar mes</h2>
-        <p class="mt-1 text-sm text-slate-500">Consulte los reportes por fecha del suceso.</p>
+        <h2 id="month-navigation-title" class="month-bar__title">Seleccionar mes</h2>
+        <p class="month-bar__text">Consulte los reportes por fecha del suceso.</p>
       </div>
-      <form id="month-form" class="flex items-end gap-2" method="get" action="{{ url_for('dashboard.home') }}">
-        <div>
-          <label for="dashboard-month" class="form-label">Mes</label>
-          <input id="dashboard-month" class="form-input" type="month" name="mes" value="{{ s.mes }}">
-        </div>
+    </div>
+    <div class="month-bar__controls">
+      {% if s.prev_mes %}<a class="month-bar__step" rel="prev" href="{{ url_for('dashboard.home', mes=s.prev_mes) }}" title="Mes anterior"><i class="bi bi-chevron-left" aria-hidden="true"></i><span class="sr-only">Mes anterior</span></a>{% else %}<span class="month-bar__step is-disabled" aria-disabled="true"><i class="bi bi-chevron-left" aria-hidden="true"></i><span class="sr-only">Mes anterior</span></span>{% endif %}
+      <form id="month-form" class="month-bar__form" method="get" action="{{ url_for('dashboard.home') }}">
+        <label for="dashboard-month" class="sr-only">Mes</label>
+        <input id="dashboard-month" class="form-input" type="month" name="mes" value="{{ s.mes }}">
         <button class="btn btn-secondary" type="submit">Ver mes</button>
       </form>
-    </div>
-    <div class="card-body flex items-center justify-between border-t border-slate-100 pt-4">
-      {% if s.prev_mes %}<a class="btn btn-ghost btn-sm" rel="prev" href="{{ url_for('dashboard.home', mes=s.prev_mes) }}" aria-label="Mes anterior">← Mes anterior</a>{% else %}<span class="btn btn-ghost btn-sm" aria-disabled="true">Mes anterior</span>{% endif %}
-      <span class="text-sm font-medium text-slate-700">{{ s.month_label }}</span>
-      {% if s.next_mes %}<a class="btn btn-ghost btn-sm" rel="next" href="{{ url_for('dashboard.home', mes=s.next_mes) }}" aria-label="Mes siguiente">Mes siguiente →</a>{% else %}<span class="btn btn-ghost btn-sm" aria-disabled="true">Mes siguiente</span>{% endif %}
+      {% if s.next_mes %}<a class="month-bar__step" rel="next" href="{{ url_for('dashboard.home', mes=s.next_mes) }}" title="Mes siguiente"><i class="bi bi-chevron-right" aria-hidden="true"></i><span class="sr-only">Mes siguiente</span></a>{% else %}<span class="month-bar__step is-disabled" aria-disabled="true"><i class="bi bi-chevron-right" aria-hidden="true"></i><span class="sr-only">Mes siguiente</span></span>{% endif %}
     </div>
   </section>
 
   <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5" aria-label="Indicadores del mes">
-    {% for name, label, value, note, style in [
-      ('total', 'Objetos reportados', k.total, k.delta_vs_previous, 'kpi-card--primary'),
-      ('lost', 'Perdidos', k.lost, 'Con fecha del suceso en el mes', 'kpi-card--lost'),
-      ('found', 'Encontrados', k.found, 'Con fecha del suceso en el mes', 'kpi-card--found'),
-      ('returned', 'Entregados', k.returned, 'Con fecha del suceso en el mes', 'kpi-card--returned'),
-      ('return_rate', 'Tasa de entrega', k.return_rate, 'Sobre los reportes del mes', 'kpi-card--rate')
+    {% for name, label, value, note, style, icon in [
+      ('total', 'Objetos reportados', k.total, k.delta_vs_previous, 'kpi-card--primary', 'bi-collection'),
+      ('lost', 'Perdidos', k.lost, 'Con fecha del suceso en el mes', 'kpi-card--lost', 'bi-question-circle'),
+      ('found', 'Encontrados', k.found, 'Con fecha del suceso en el mes', 'kpi-card--found', 'bi-search-heart'),
+      ('returned', 'Entregados', k.returned, 'Con fecha del suceso en el mes', 'kpi-card--returned', 'bi-check2-circle'),
+      ('return_rate', 'Tasa de entrega', k.return_rate, 'Sobre los reportes del mes', 'kpi-card--rate', 'bi-graph-up-arrow')
     ] %}
       <article class="card kpi-card {{ style }}">
         <p class="kpi-label">{{ label }}</p>
+        <span class="kpi-icon" aria-hidden="true"><i class="bi {{ icon }}"></i></span>
+        {% if name in ('lost', 'found', 'returned') %}
+        <a class="kpi-link" href="{{ url_for('main.index', mes=s.mes, estado=name) }}" title="Ver {{ label|lower }} del mes"><i class="bi bi-arrow-right" aria-hidden="true"></i><span class="sr-only">Ver {{ label|lower }} del mes</span></a>
+        {% endif %}
         <p class="kpi-value" data-kpi="{{ name }}">{{ value if name == 'return_rate' else ('{:,}'.format(value).replace(',', '.')) }}</p>
         {% if name == 'total' %}<p class="kpi-note">Perdidos o encontrados con fecha del suceso en el mes</p><p class="kpi-note" data-kpi="delta">{{ note }}</p>{% else %}<p class="kpi-note">{{ note }}</p>{% endif %}
       </article>
@@ -75,6 +78,19 @@
           </div>
         </article>
       {% endfor %}
+      <article class="card chart-card">
+        <div class="card-header"><h2>Estado de los reportes</h2></div>
+        <div class="card-body">
+          <div class="status-chart">
+            <div class="status-chart__canvas"><canvas id="chart-status" role="img" aria-label="Estado de los reportes para {{ s.month_label }}"></canvas></div>
+            <ul class="status-legend">
+              <li class="status--lost"><span class="status-legend__dot"></span>Perdidos<strong>{{ k.lost }}</strong></li>
+              <li class="status--found"><span class="status-legend__dot"></span>Encontrados<strong>{{ k.found }}</strong></li>
+              <li class="status--returned"><span class="status-legend__dot"></span>Entregados<strong>{{ k.returned }}</strong></li>
+            </ul>
+          </div>
+        </div>
+      </article>
     </section>
 
   {% endif %}
@@ -82,12 +98,11 @@
     <section class="card" aria-labelledby="recent-title">
       <div class="card-header flex items-center justify-between"><h2 id="recent-title">Últimos reportes</h2><a class="text-sm font-medium text-primary-800 hover:underline" href="{{ url_for('main.index', mes=s.mes) }}">Ver todos los reportes del mes</a></div>
       <div class="table-wrap"><table id="dashboard-recent" class="table"><thead><tr><th>Objeto</th><th>Lugar</th><th>Categoría</th><th>Fecha</th><th>Estado</th></tr></thead><tbody>
-        {% for item in s.recent %}<tr><td><a class="font-medium text-primary-800 hover:underline" href="{{ url_for('main.view', item_id=item.id) }}">{{ item.name }}</a></td><td>{{ item.location.strip() if item.location and item.location.strip() else 'Sin especificar' }}</td><td>{{ item.category|categoria_label }}</td><td>{{ item.event_date|fecha }}</td><td><span class="badge {{ item.status|estado_badge }}">{{ item.status|estado_label }}</span></td></tr>{% endfor %}
+        {% for item in s.recent %}<tr><td><a class="font-medium text-primary-800 hover:underline" href="{{ url_for('main.view', item_id=item.id) }}">{{ item.name }}</a></td><td>{{ item.location.strip() if item.location and item.location.strip() else 'Sin especificar' }}</td><td>{{ item.category|categoria_label }}</td><td>{{ item.event_date|fecha }}</td><td>{{ status_badge(item.status) }}</td></tr>{% endfor %}
       </tbody></table></div>
     </section>
   {% else %}
-    {{ empty_state("No hay reportes con fecha del suceso en este mes.", "Registre un objeto o seleccione otro mes para consultar la información disponible.", url_for('main.add'), "Reportar objeto", "bi-inbox", "btn-secondary") }}
-    <a class="btn btn-secondary mt-3" href="#dashboard-month">Ver otro mes</a>
+    {{ empty_state("No hay reportes con fecha del suceso en este mes.", "Use las flechas o el selector de mes para consultar otro periodo.", icon="bi-inbox") }}
   {% endif %}
 </div>
 {% endblock %}
@@ -96,11 +111,30 @@
 {% if has_reports %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
 <script type="application/json" id="dashboard-chart-data">{{ chart_json|safe }}</script>
+<script type="application/json" id="dashboard-status-data">{{ [summary.kpis.lost, summary.kpis.found, summary.kpis.returned]|tojson }}</script>
 <script>
 document.addEventListener("DOMContentLoaded", function () {
+  // Draw after the web fonts load so Chart.js measures axis labels with the final font.
+  (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(drawCharts);
+});
+function drawCharts() {
   var data = JSON.parse(document.getElementById("dashboard-chart-data").textContent);
   if (typeof Chart === "undefined") return;
-  function draw(id, chartData, horizontal) {
+  // Palette shared with app.css: UCSS navy/teal/cyan plus warm accents per category.
+  var categoryColors = {
+    "Documentos": "#2a6f9a",
+    "Electrónica": "#0d97a4",
+    "Llaves": "#e9a23b",
+    "Ropa y accesorios": "#ef7d57",
+    "Mochilas y útiles": "#c2557a",
+    "Otros": "#6b8794"
+  };
+  var cycle = ["#0d97a4", "#ef7d57", "#2a6f9a", "#e9a23b", "#c2557a", "#6b8794", "#39a1c4"];
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  Chart.defaults.font.family = "'Plus Jakarta Sans', Inter, ui-sans-serif, system-ui, sans-serif";
+  Chart.defaults.color = "#55717d";
+  Chart.defaults.borderColor = "#e3eef1";
+  function draw(id, chartData, horizontal, colors) {
     var canvas = document.getElementById(id);
     if (!canvas) return;
     var scales = {};
@@ -108,6 +142,7 @@ document.addEventListener("DOMContentLoaded", function () {
       beginAtZero: true,
       ticks: { precision: 0 }
     };
+    scales[horizontal ? "y" : "x"] = { grid: { display: false } };
     new Chart(canvas, {
       type: "bar",
       data: {
@@ -115,7 +150,10 @@ document.addEventListener("DOMContentLoaded", function () {
         datasets: [{
           label: "Reportes",
           data: chartData.counts,
-           backgroundColor: "#00a2c5",
+          backgroundColor: colors || "#00a2c5",
+          borderRadius: 8,
+          borderSkipped: false,
+          maxBarThickness: 46,
           borderWidth: 0
         }]
       },
@@ -138,10 +176,52 @@ document.addEventListener("DOMContentLoaded", function () {
       }, horizontal ? { indexAxis: "y" } : {})
     });
   }
-  draw("chart-daily", data.daily, false);
-  draw("chart-categories", data.categories, false);
-  draw("chart-locations", data.locations, true);
-});
+  var busiest = Math.max.apply(null, data.daily.counts);
+  draw("chart-daily", data.daily, false, data.daily.counts.map(function (count) {
+    return count === busiest ? "#ef7d57" : "#00a2c5";
+  }));
+  draw("chart-categories", data.categories, false, data.categories.labels.map(function (label, index) {
+    return categoryColors[label] || cycle[index % cycle.length];
+  }));
+  var locationShades = ["#2a6f9a", "#3b80aa", "#5592b8", "#73a6c6", "#93bbd4"];
+  draw("chart-locations", data.locations, true, data.locations.labels.map(function (label, index) {
+    return locationShades[index] || "#73d4df";
+  }));
+
+  var statusCanvas = document.getElementById("chart-status");
+  if (statusCanvas) {
+    new Chart(statusCanvas, {
+      type: "doughnut",
+      data: {
+        labels: ["Perdidos", "Encontrados", "Entregados"],
+        datasets: [{
+          data: JSON.parse(document.getElementById("dashboard-status-data").textContent),
+          backgroundColor: ["#e9a23b", "#0d97a4", "#2f9e6e"],
+          borderColor: "#fff",
+          borderWidth: 4,
+          hoverOffset: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: "68%",
+        animation: reduced ? false : {},
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function (context) {
+                var count = context.raw;
+                return " " + (count === 1 ? "1 reporte" : count.toLocaleString("es") + " reportes");
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+}
 </script>
 {% endif %}
 {% endblock %}

@@ -24,7 +24,7 @@ def _utc_now():
 @bp.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for("main.index"))
+        return redirect(url_for("dashboard.home"))
 
     form = LoginForm()
 
@@ -47,7 +47,7 @@ def login():
 
         login_user(user)
         flash("Sesión iniciada correctamente.", "success")
-        return redirect(safe_next or url_for("main.index"))
+        return redirect(safe_next or url_for("dashboard.home"))
 
     return render_template("login.html", form=form, login_action=login_action)
 
@@ -58,7 +58,7 @@ def login():
 @bp.route("/register", methods=["GET", "POST"])
 def register():
     if current_user.is_authenticated:
-        return redirect(url_for("main.index"))
+        return redirect(url_for("dashboard.home"))
 
     form = RegisterForm()
 

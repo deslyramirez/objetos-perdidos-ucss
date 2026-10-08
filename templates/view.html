@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% from "_macros.html" import delete_form, status_badge, csrf_field %}
+{% from "_macros.html" import delete_form, status_badge, csrf_field, CATEGORY_ICONS, STATUS_ICONS %}
+{% set cat = item.category if item.category in CATEGORY_ICONS else 'other' %}
 {% block title %}{{ item.name }}{% endblock %}
 
 {% block content %}
@@ -8,7 +9,7 @@
     <i class="bi bi-arrow-left" aria-hidden="true"></i> Volver a los objetos
   </a>
 
-  <div class="card mt-4">
+  <div class="card detail-card status--{{ item.status }} cat--{{ cat }} mt-4">
     <div class="card-body">
       <div class="grid grid-cols-1 gap-8 md:grid-cols-2">
 
@@ -17,12 +18,28 @@
           <img src="{{ url_for('static', filename='uploads/' ~ item.image_filename) }}"
                alt="{{ item.name }}" width="640" height="480">
           {% else %}
-          <div class="detail-photo__placeholder" aria-hidden="true"><i class="bi bi-image"></i></div>
+          <div class="detail-photo__placeholder" aria-hidden="true">
+            <span class="object-card__glyph"><i class="bi {{ CATEGORY_ICONS[cat] }}"></i></span>
+            <span class="object-card__nophoto"><i class="bi bi-image"></i> Sin fotografía</span>
+          </div>
           {% endif %}
         </div>
 
         <div class="min-w-0">
-          <h1 class="break-words text-2xl font-bold text-slate-900">{{ item.name }}</h1>
+          <p class="detail-eyebrow"><i class="bi {{ CATEGORY_ICONS[cat] }}" aria-hidden="true"></i> {{ item.category|categoria_label if item.category else "Sin categoría" }}</p>
+          <h1 class="detail-title">{{ item.name }}</h1>
+
+          {% set steps = [('lost', 'Perdido'), ('found', 'Encontrado'), ('returned', 'Entregado')] %}
+          {% set current = {'lost': 0, 'found': 1, 'returned': 2}.get(item.status, 0) %}
+          <ol class="status-track" aria-label="Seguimiento del reporte">
+            {% for key, label in steps %}
+            <li class="status-track__step status--{{ key }}{{ ' is-done' if loop.index0 < current }}{{ ' is-current' if loop.index0 == current }}"
+                {%- if loop.index0 == current %} aria-current="step"{% endif %}>
+              <span class="status-track__dot"><i class="bi {{ STATUS_ICONS[key] }}" aria-hidden="true"></i></span>
+              <span class="status-track__label">{{ label }}</span>
+            </li>
+            {% endfor %}
+          </ol>
 
           <dl class="detail-grid">
             <div>

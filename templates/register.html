@@ -9,7 +9,7 @@
 {% block footer %}{% endblock %}
 
 {% block content %}
-<div class="auth-split">
+<div class="auth-split auth-split--register">
   {{ auth_spheres() }}
   {{ auth_brand() }}
 
@@ -17,8 +17,8 @@
     <div class="auth-card">
       {{ auth_card_top() }}
 
-      <h1 class="auth-card__title">Crear cuenta</h1>
-      <p class="auth-card__subtitle">Registre un usuario para reportar objetos perdidos y encontrados</p>
+      <h1 class="auth-card__title">Registrarse</h1>
+      <p class="auth-card__subtitle">Crea tu cuenta para reportar y consultar objetos</p>
 
       {{ flash_messages() }}
 

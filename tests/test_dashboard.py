@@ -788,15 +788,15 @@ def test_drawing_script_survives_a_blocked_cdn(maria, maria_user):
     assert "1 reporte" in html and "reportes" in html
 
 
-def test_three_chart_cards_with_accessible_canvases(maria, maria_user):
+def test_chart_cards_with_accessible_canvases(maria, maria_user):
     _add_reports(maria_user, dict(day="2026-10-05"))
 
     html = _get(maria)
 
-    for title in ("Reportes por día", "Reportes por categoría", "Lugares con más reportes"):
+    for title in ("Reportes por día", "Reportes por categoría", "Lugares con más reportes", "Estado de los reportes"):
         assert title in html, title
     canvases = re.findall(r"<canvas\b[^>]*>", html)
-    assert len(canvases) == 3
+    assert len(canvases) == 4
     for canvas in canvases:
         assert re.search(r'role="img"', canvas)
         label = re.search(r'aria-label="([^"]+)"', canvas)
@@ -835,8 +835,8 @@ def test_empty_month_shows_the_empty_state_and_hides_charts(maria, maria_user):
 
     assert EMPTY_TEXT in body
     assert "empty-state" in body
-    assert re.search(r'<a[^>]*href="/add"[^>]*>\s*Reportar objeto\s*</a>', body)
-    assert re.search(r'<a[^>]*href="#dashboard-month"[^>]*>\s*Ver otro mes\s*</a>', body)
+    # The sidebar already offers "Nuevo reporte"; the empty state adds no duplicate buttons.
+    assert "Reportar objeto" not in body and "Ver otro mes" not in body
     assert "<canvas" not in body
     assert "dashboard-chart-data" not in html
     assert "chart-card" not in body
@@ -866,11 +866,11 @@ def test_empty_database_renders(maria):
     assert "dashboard-chart-data" not in _text(response)
 
 
-def test_empty_state_actions_use_secondary_buttons(maria):
-    body = _main(_get(maria))
+def test_dashboard_greets_the_user_by_name(maria):
+    html = _get(maria)
 
-    actions = re.findall(r'<a[^>]*class="btn ([^"]*)"[^>]*>\s*(?:Reportar objeto|Ver otro mes)\s*</a>', body)
-    assert actions and all("btn-secondary" in action for action in actions)
+    assert re.search(r'<p class="page-greeting" data-greeting="maria">Hola, maria</p>', html)
+    assert "Buenos días" in html and "Buenas tardes" in html and "Buenas noches" in html
 
 
 # --- formal Spanish, no emojis ------------------------------------------------

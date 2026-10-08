@@ -17,8 +17,8 @@
         Renders nothing when there are none. Place it at the top of every form.
     csrf_field()
         Hidden csrf_token input for hand-written forms (logout, delete, upload...).
-    page_header(title, subtitle=None)
-        Page title row. Use {% call page_header("Título") %}...actions...{% endcall %} to put
+    page_header(title, subtitle=None, icon=None)
+        Page title row; icon (Bootstrap Icons class) shows a tile tinted with the section color --c. Use {% call page_header("Título") %}...actions...{% endcall %} to put
         buttons on the right.
     pagination(pag, endpoint, **params)
         Flask-SQLAlchemy pagination controls (Anterior, Página X de Y, Siguiente, total).
@@ -55,6 +55,23 @@
     auth_scripts()
         Null-safe vanilla JS: fills the date badge and wires every .password-toggle button.
 #}
+
+{#- Visual identity per category and status: icon names (Bootstrap Icons). Colors live in
+    app.css as .cat--<key> / .status--<key> so templates only pick the class. -#}
+{% set CATEGORY_ICONS = {
+  'documents': 'bi-person-vcard',
+  'electronics': 'bi-headphones',
+  'keys': 'bi-key',
+  'clothing': 'bi-handbag',
+  'bags': 'bi-backpack2',
+  'other': 'bi-box-seam'
+} %}
+{% set STATUS_ICONS = {
+  'lost': 'bi-question-circle',
+  'found': 'bi-search-heart',
+  'returned': 'bi-check2-circle'
+} %}
+
 
 {% macro csrf_field() -%}
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -122,11 +139,14 @@
 {%- endmacro %}
 
 
-{% macro page_header(title, subtitle=None) -%}
+{% macro page_header(title, subtitle=None, icon=None) -%}
 <div class="page-header">
-  <div>
+  <div class="page-header__lead">
+    {% if icon %}<span class="page-header__icon" aria-hidden="true"><i class="bi {{ icon }}"></i></span>{% endif %}
+    <div>
     <h1 class="page-title">{{ title }}</h1>
     {% if subtitle %}<p class="page-subtitle">{{ subtitle }}</p>{% endif %}
+    </div>
   </div>
   {% if caller is defined %}
   <div class="flex flex-wrap items-center gap-2">{{ caller() }}</div>
@@ -195,7 +215,7 @@
 
 
 {% macro status_badge(status) -%}
-<span class="badge status-badge {{ status|estado_badge }}">{{ status|estado_label }}</span>
+<span class="badge status-badge status--{{ status }} {{ status|estado_badge }}"><i class="bi {{ STATUS_ICONS.get(status, 'bi-circle') }}" aria-hidden="true"></i>{{ status|estado_label }}</span>
 {%- endmacro %}
 
 
@@ -246,7 +266,12 @@
 <div class="auth-brand">
   <div class="auth-brand__inner">
     <img class="auth-brand__logo" src="{{ url_for('static', filename='img/ucss-logo.png', v=2) }}" alt="Universidad Católica Sedes Sapientiae (UCSS)">
+    <figure class="auth-hero-visual">
+      <img src="{{ url_for('static', filename='img/lost-found-hero.png', v=1) }}" alt="Mochila, audífonos, cuaderno y llaves en un punto de objetos encontrados" loading="eager">
+      <figcaption>Un espacio para encontrar, reportar y devolver</figcaption>
+    </figure>
     <span class="auth-brand__rule" aria-hidden="true"></span>
+    <h2 class="auth-brand__headline">Únete a una comunidad que ayuda a encontrar.</h2>
     <p class="auth-brand__tagline">Sistema de gestión de objetos perdidos y encontrados</p>
   </div>
 </div>

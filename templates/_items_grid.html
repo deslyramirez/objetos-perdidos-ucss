@@ -14,19 +14,23 @@
         Callers decide what to show when there are no items (use empty_state): the macro
         always renders the list. Load Item.user eagerly to avoid one query per card.
 #}
-{% from "_macros.html" import status_badge %}
+{% from "_macros.html" import status_badge, CATEGORY_ICONS %}
 
 {% macro items_grid(items) -%}
 <ul class="gallery">
   {% for item in items %}
-  <li>
+  {% set cat = item.category if item.category in CATEGORY_ICONS else 'other' %}
+  <li class="status--{{ item.status }} cat--{{ cat }}">
     <article class="object-card">
       <div class="object-card__media">
         {% if item.image_filename %}
         <img src="{{ url_for('static', filename='uploads/' ~ item.image_filename) }}"
              alt="{{ item.name }}" width="400" height="300" loading="lazy">
         {% else %}
-        <div class="object-card__placeholder" aria-hidden="true"><i class="bi bi-image"></i></div>
+        <div class="object-card__placeholder" aria-hidden="true">
+          <span class="object-card__glyph"><i class="bi {{ CATEGORY_ICONS[cat] }}"></i></span>
+          <span class="object-card__nophoto"><i class="bi bi-image"></i> Sin fotografía</span>
+        </div>
         {% endif %}
         <span class="object-card__status">{{ status_badge(item.status) }}</span>
       </div>
@@ -35,7 +39,7 @@
           <a class="object-card__link" href="{{ url_for('main.view', item_id=item.id) }}">{{ item.name }}</a>
         </h2>
         <ul class="object-card__meta">
-          <li><i class="bi bi-tag" aria-hidden="true"></i><span class="sr-only">Categoría: </span>{{ item.category|categoria_label }}</li>
+          <li class="object-card__category"><i class="bi {{ CATEGORY_ICONS[cat] }}" aria-hidden="true"></i><span class="sr-only">Categoría: </span>{{ item.category|categoria_label }}</li>
           <li><i class="bi bi-geo-alt" aria-hidden="true"></i><span class="sr-only">Lugar: </span>{{ item.location or "No indicado" }}</li>
           <li><i class="bi bi-calendar-event" aria-hidden="true"></i><span class="sr-only">Fecha del suceso: </span>{{ item.event_date|fecha }}</li>
           <li><i class="bi bi-person" aria-hidden="true"></i><span class="sr-only">Reportado por: </span>{{ item.user.username if item.user else "—" }}</li>

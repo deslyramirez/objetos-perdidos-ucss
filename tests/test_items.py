@@ -183,16 +183,16 @@ def test_anonymous_users_are_sent_to_login(browser_for, method, url):
 # --- list --------------------------------------------------------------------
 
 
-def test_list_shows_empty_state_with_primary_action(maria):
+def test_list_shows_empty_state_without_duplicated_actions(maria):
     html = _text(maria.get("/"))
     body = _main(html)
 
     assert "Aún no hay reportes registrados." in body
-    assert 'href="/add"' in body
-    assert "Reportar objeto" in body
+    assert 'href="/add"' not in body
+    assert 'href="/add"' in html
     assert "<table" not in html
     assert 'class="gallery' not in body
-    assert body.count("btn-primary") == 1
+    assert body.count("btn-primary") == 0
 
 
 def test_list_renders_reports_in_spanish(maria, owned_item):
@@ -200,7 +200,7 @@ def test_list_renders_reports_in_spanish(maria, owned_item):
     body = _main(html)
 
     assert '<html lang="es"' in html
-    assert "Objetos perdidos y encontrados" in body
+    assert "Centro de reportes" in body
     assert "1 reporte registrado" in body
     assert "Mochila azul" in body
     assert f'href="/item/{owned_item.id}"' in body
@@ -375,7 +375,7 @@ def test_add_form_is_spanish_sectioned_and_multipart(maria):
     html = _text(maria.get("/add"))
     body = _main(html)
 
-    assert "Reportar objeto" in html.split("</title>")[0]
+    assert "Nuevo reporte" in html.split("</title>")[0]
     assert re.search(r'<form[^>]*enctype="multipart/form-data"', body)
     assert 'name="csrf_token"' in body
     for label in ("Objeto", "Descripción", "Categoría", "Lugar", "Fecha del suceso", "Estado", "Contacto (opcional)", "Fotografía (opcional)"):
@@ -1190,7 +1190,7 @@ def test_navbar_brand_and_links_on_item_pages(maria, owned_item):
     html = _text(maria.get(f"/item/{owned_item.id}"))
 
     assert "Objetos perdidos" in html
-    assert "Reportar objeto" in html
+    assert "Nuevo reporte" in html
     assert "Agregar artículo" not in html
     assert ">Buscar<" not in html.split("<main", 1)[0]
 

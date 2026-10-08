@@ -582,7 +582,7 @@ def test_change_password_success(client, logged_in, user):
     old = client.post("/auth/login", data={"username": "maria", "password": "password123"})
     assert _location_path(old) == "/auth/login"
     new = client.post("/auth/login", data={"username": "maria", "password": "nueva-clave"})
-    assert _location_path(new) == "/"
+    assert _location_path(new) == "/dashboard/"
 
 
 def test_change_password_rejects_wrong_current_password(logged_in, user):
@@ -635,7 +635,7 @@ def csrf_session(csrf_app, make_csrf_user, csrf_token):
         "/auth/login",
         data={"username": "maria", "password": "password123", "csrf_token": token},
     )
-    assert _location_path(response) == "/"
+    assert _location_path(response) == "/dashboard/"
     return client, user
 
 

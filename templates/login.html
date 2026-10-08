@@ -10,16 +10,32 @@
 {% block footer %}{% endblock %}
 
 {% block content %}
-<div class="auth-split">
+<div class="auth-split auth-split--login">
   {{ auth_spheres() }}
-  {{ auth_brand() }}
+  <section class="auth-brand auth-brand--hero" aria-labelledby="auth-hero-title">
+    <div class="auth-brand__inner">
+      <img class="auth-brand__logo" src="{{ url_for('static', filename='img/ucss-logo.png', v=2) }}" alt="Universidad Católica Sedes Sapientiae (UCSS)">
+      <figure class="auth-hero-visual">
+        <img src="{{ url_for('static', filename='img/lost-found-hero.png', v=1) }}" alt="Mochila, audífonos, cuaderno y llaves en un punto de objetos encontrados" loading="eager">
+        <figcaption>Un espacio para encontrar, reportar y devolver</figcaption>
+      </figure>
+      <span class="auth-brand__rule" aria-hidden="true"></span>
+      <h2 id="auth-hero-title" class="auth-hero__title">Encuentra lo que perdiste.<br><strong>Devuelve lo que encontraste.</strong></h2>
+      <p class="auth-brand__tagline">Sistema de gestión de objetos perdidos y encontrados de la comunidad universitaria.</p>
+    </div>
+  </section>
 
   <div class="auth-panel">
     <div class="auth-card">
       {{ auth_card_top() }}
 
-      <h1 class="auth-card__title">¡Bienvenido!</h1>
-      <p class="auth-card__subtitle">Inicie sesión para reportar o consultar objetos</p>
+      <div class="auth-card__welcome">
+        <span class="auth-card__welcome-icon" aria-hidden="true"><i class="bi bi-person-lock"></i></span>
+        <div>
+          <h1 class="auth-card__title">Bienvenido de nuevo</h1>
+          <p class="auth-card__subtitle">Ingresa para gestionar tus reportes</p>
+        </div>
+      </div>
 
       {{ flash_messages() }}
 
@@ -30,7 +46,7 @@
         {{ field(form.username, autocomplete="username", autofocus=true, placeholder="Ingrese su usuario") }}
         {{ field(form.password, autocomplete="current-password", placeholder="Ingrese su contraseña", password_toggle=true) }}
 
-        <button type="submit" class="btn btn-primary auth-submit">{{ form.submit.label.text }}</button>
+        <button type="submit" class="btn btn-primary auth-submit"><span>{{ form.submit.label.text }}</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button>
       </form>
 
       <p class="auth-card__switch">

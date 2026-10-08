@@ -33,7 +33,7 @@ def test_observed_palette_is_shared_by_tailwind_css_and_dashboard_chart():
     for color in ("#00a2c5", "#0d97a4", "#154462"):
         assert color in base
         assert color in css
-    assert 'backgroundColor: "#00a2c5"' in dashboard
+    assert '"#00a2c5"' in dashboard and '"#0d97a4"' in dashboard
 
 
 def test_motion_has_reduced_motion_override_and_bounded_stagger():

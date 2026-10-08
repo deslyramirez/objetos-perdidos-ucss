@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% from "_macros.html" import page_header, field, form_errors, csrf_field %}
-{% block title %}Reportar objeto{% endblock %}
+{% block title %}Nuevo reporte{% endblock %}
 
 {% block content %}
-<div class="mx-auto max-w-2xl">
-  {{ page_header("Reportar objeto", "Complete los datos del objeto perdido o encontrado. Los campos con * son obligatorios.") }}
+<div class="mx-auto max-w-3xl internal-form internal-form--report">
+  {{ page_header("Nuevo reporte", "Registre un objeto perdido o encontrado. Los campos con * son obligatorios.", "bi-plus-circle") }}
 
   <div class="card">
     <div class="card-body">

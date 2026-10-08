@@ -3,8 +3,8 @@
 {% block title %}Importar CSV{% endblock %}
 
 {% block content %}
-<div class="mx-auto max-w-4xl space-y-6">
-  {{ page_header("Importar CSV", "Cargue varios reportes a la vez desde un archivo CSV.") }}
+<div class="mx-auto max-w-5xl space-y-6 internal-page internal-page--import">
+  {{ page_header("Importar CSV", "Cargue varios reportes a la vez desde un archivo CSV.", "bi-upload") }}
 
   <section class="card" aria-labelledby="csv-format-title">
     <div class="card-header" id="csv-format-title">Formato del archivo</div>
@@ -117,9 +117,13 @@ Paraguas negro;Entrada principal;12/03/2026;;Otros;Entregado;</pre>
     <div class="card-body">
       <form method="post" enctype="multipart/form-data">
         {{ csrf_field() }}
-        <div class="mb-4">
-          <label class="form-label" for="file">Archivo CSV</label>
-          <input type="file" id="file" name="file" class="form-input" accept=".csv,text/csv" required>
+        <div class="upload-panel mb-5">
+          <div class="upload-panel__icon" aria-hidden="true"><i class="bi bi-filetype-csv"></i></div>
+          <div class="upload-panel__copy">
+            <label class="upload-panel__title" for="file">Selecciona tu archivo CSV</label>
+            <p>Elige un archivo de hasta {{ max_rows|formato_numero }} filas y 5 MB.</p>
+          </div>
+          <input type="file" id="file" name="file" class="form-input upload-panel__input" accept=".csv,text/csv" required>
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <button type="submit" class="btn btn-primary">

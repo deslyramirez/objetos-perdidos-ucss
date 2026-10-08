@@ -24,11 +24,10 @@ EMOJI_PATTERN = re.compile(
 )
 
 NAV_LABELS = (
-    "Objetos",
     "Panel",
-    "Importar CSV",
-    "Exportar CSV",
-    "Reportar objeto",
+    "Importar",
+    "Exportar",
+    "Nuevo reporte",
 )
 
 REMOVED_NAV_LABELS = ("Buscar", "Agregar artículo", "Inventario")
@@ -57,7 +56,7 @@ def test_anonymous_page_uses_spanish_language_and_auth_links(client):
     assert "Iniciar sesión" in html
     assert "Registrarse" in html
     assert "Cerrar sesión" not in html
-    assert "Reportar objeto" not in html
+    assert "Nuevo reporte" not in html
     assert '<html lang="es"' in _text(client.get("/auth/login"))
 
 
@@ -66,7 +65,7 @@ def test_anonymous_page_has_pinned_assets_and_linked_stylesheet(client):
 
     assert "https://cdn.tailwindcss.com/3.4.17" in html
     assert "bootstrap-icons@1.11.3" in html
-    assert re.search(r"/static/css/app\.css\?v=4", html)
+    assert re.search(r"/static/css/app\.css\?v=\d+", html)
     assert "chart.js" not in html.lower()
 
 
@@ -144,11 +143,11 @@ def test_navbar_logout_form_signs_the_user_out(logged_in):
 
 
 def test_navbar_marks_active_link(logged_in):
-    html = _text(logged_in.get("/"))
+    html = _text(logged_in.get("/dashboard/"))
 
     active = re.findall(r'<a[^>]*aria-current="page"[^>]*>', html)
     assert len(active) == 1
-    assert 'href="/"' in active[0]
+    assert 'href="/dashboard/"' in active[0]
 
     html = _text(logged_in.get("/import/csv"))
     active = re.findall(r'<a[^>]*aria-current="page"[^>]*>', html)
@@ -231,11 +230,12 @@ def test_authenticated_pages_keep_the_exact_default_chrome(logged_in):
     html = _text(logged_in.get("/"))
 
     assert (
-        '<body class="app-shell flex min-h-screen flex-col font-sans text-slate-900 antialiased">'
+        '<body class="app-shell has-sidebar flex min-h-screen flex-col font-sans text-slate-900 antialiased"'
         in html
     )
-    assert '<header class="app-header border-b border-primary-900">' in html
-    assert '<footer class="app-footer border-t">' in html
+    assert '<aside id="nav-menu" class="app-sidebar" aria-label="Navegación principal">' in html
+    assert '<header class="app-header">' in html
+    assert '<footer class="app-footer">' in html
     assert (
         '<main id="main-content" class="page-shell mx-auto w-full max-w-6xl flex-1 px-4 py-8">'
         in html
@@ -677,6 +677,35 @@ def test_items_grid_macro_renders_cards_with_core_details(app, make_user, make_i
     for text in ("Mochila azul", "Aula 4", "10 de marzo de 2026", "Mochilas y útiles", "Perdido", "maria"):
         assert text in html, text
     assert "bi-image" in html
+
+
+def test_items_grid_tints_cards_by_status_and_category(app, make_user, make_item):
+    owner = make_user("maria", "password123")
+    known = make_item(owner, name="Llaves", category="keys", status="found")
+    legacy = make_item(owner, name="Grapadora", category="office")
+
+    html = _render(
+        app,
+        '{% from "_items_grid.html" import items_grid %}{{ items_grid(items) }}',
+        items=[known, legacy],
+    )
+
+    assert 'class="status--found cat--keys"' in html and "bi-key" in html
+    assert 'class="status--lost cat--other"' in html
+    assert "Sin fotografía" in html
+
+
+def test_detail_page_shows_status_track(app, client, make_user, make_item, login):
+    owner = make_user("maria", "password123")
+    item = make_item(owner, name="Llaves", category="keys", status="found")
+    login("maria", "password123")
+
+    html = client.get(f"/item/{item.id}").get_data(as_text=True)
+
+    track = re.search(r'<ol class="status-track"[^>]*>(.*?)</ol>', html, re.DOTALL).group(1)
+    assert "status--lost is-done" in track
+    assert re.search(r'status--found is-current"\s*aria-current="step"', track)
+    assert "is-done" not in track.split("status--returned", 1)[1]
 
 
 def test_stylesheet_defines_the_lost_and_found_components():

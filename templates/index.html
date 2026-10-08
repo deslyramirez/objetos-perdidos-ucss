@@ -10,13 +10,11 @@
 
 {% block content %}
 {% if not items.total and not filters_active %}
-  {{ page_header("Objetos perdidos y encontrados") }}
+  {{ page_header("Centro de reportes", "Objetos perdidos, encontrados y entregados en la universidad.", "bi-collection") }}
   {{ empty_state(
       "Aún no hay reportes registrados.",
-      "Registre el primer objeto perdido o encontrado, o importe varios reportes desde un archivo CSV.",
-      url_for("main.add"),
-      "Reportar objeto",
-      "bi-search") }}
+      "Use «Nuevo reporte» o «Importar CSV» en el menú lateral para registrar el primero.",
+      icon="bi-inbox") }}
 {% else %}
   {% set noun = 'reporte' if items.total == 1 else 'reportes' %}
   {% if filters_active %}
@@ -24,7 +22,7 @@
   {% else %}
     {% set subtitle = (items.total|formato_numero) ~ ' ' ~ noun ~ (' registrado' if items.total == 1 else ' registrados') %}
   {% endif %}
-  {{ page_header("Objetos perdidos y encontrados", subtitle) }}
+  {{ page_header("Centro de reportes", subtitle, "bi-collection") }}
 
   <form method="get" action="{{ url_for('main.index') }}" role="search" class="filter-bar" aria-label="Filtrar objetos">
     {% if filters.estado %}<input type="hidden" name="estado" value="{{ filters.estado }}">{% endif %}

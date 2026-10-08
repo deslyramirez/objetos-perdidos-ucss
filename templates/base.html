@@ -1,31 +1,50 @@
 {#-
-  Base layout: navbar, flash messages, content container and footer.
+  Base layout: admin-style shell (sidebar + top bar), flash messages, content and footer.
 
   BLOCKS (all optional except content)
     title    Page title. Rendered as "<title>{title} · Objetos perdidos</title>"; empty -> "Objetos perdidos".
     head     Extra <head> content (meta tags, page-specific <link>/<style>).
-    content  Page body, rendered inside the centered max-w-6xl container below the flash messages.
+    content  Page body, rendered inside the centered content container below the flash messages.
     scripts  Page-specific scripts, rendered at the end of <body>.
 
   LAYOUT BLOCKS (the defaults reproduce the standard application shell; override them only for
   special full-screen pages such as login.html and register.html, which empty header/footer)
     body_class  Classes of <body>.
-    header      The global navigation <header> (rendered after the skip link).
+    header      Sidebar (signed-in users) and the top bar <header> (rendered after the skip link).
     flash       Flash messages, rendered at the top of <main> before content.
     main_class  Classes of <main id="main-content">.
     footer      The global <footer>.
 
+  SECTIONS
+    Each screen belongs to a section (see `sections` below) that gives it a breadcrumb label,
+    an icon and an accent color. The color is exposed as the CSS variable --c on <body> and is
+    reused by the active sidebar item, the page header icon and table headers.
+
   Shared components live in static/css/app.css (classes) and templates/_macros.html (macros).
-   Context provided by the app: current_year and avatar_url().
+  Context provided by the app: current_year and avatar_url().
 -#}
 {%- from "_macros.html" import flash_messages, csrf_field -%}
 {%- set page_title %}{% block title %}{% endblock %}{% endset -%}
 {%- set endpoint = request.endpoint or '' -%}
-{%- macro nav_link(href, label, icon, active=False) -%}
-<a href="{{ href }}"
-   class="app-nav-link inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium {{ 'is-active' if active else '' }}"
+{%- set sections = {
+  'reports': ('Centro de reportes', 'bi-collection', '#0d97a4'),
+  'add': ('Nuevo reporte', 'bi-plus-circle', '#e0673f'),
+  'dashboard': ('Panel mensual', 'bi-bar-chart-line', '#2a6f9a'),
+  'import': ('Importar CSV', 'bi-upload', '#c27a16'),
+  'export': ('Exportar CSV', 'bi-download', '#2f9e6e'),
+  'account': ('Mi cuenta', 'bi-person-circle', '#355a6e')
+} -%}
+{%- if endpoint.startswith('dashboard.') %}{% set section = 'dashboard' %}
+{%- elif endpoint == 'main.add' %}{% set section = 'add' %}
+{%- elif endpoint == 'main.import_csv' %}{% set section = 'import' %}
+{%- elif endpoint.startswith('profile.') %}{% set section = 'account' %}
+{%- else %}{% set section = 'reports' %}{% endif -%}
+{%- macro nav_link(href, key, active=False) -%}
+{%- set label, icon, color = sections[key] -%}
+<a href="{{ href }}" style="--c: {{ color }}"
+   class="app-nav-link {{ 'is-active' if active else '' }}"
    {%- if active %} aria-current="page"{% endif %}>
-  <i class="bi {{ icon }}" aria-hidden="true"></i>{{ label }}
+  <i class="bi {{ icon }}" aria-hidden="true"></i><span>{{ label }}</span>
 </a>
 {%- endmacro -%}
 <!DOCTYPE html>
@@ -56,7 +75,7 @@
                         }
                     },
                     fontFamily: {
-                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif']
+                        sans: ['"Plus Jakarta Sans"', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif']
                     }
                 }
             }
@@ -64,15 +83,15 @@
     </script>
 
     <!-- Fonts and icons -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 
     <!-- Design system components -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css', v=4) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css', v=28) }}">
     {% block head %}{% endblock %}
 </head>
 
-<body class="{% block body_class %}app-shell flex min-h-screen flex-col font-sans text-slate-900 antialiased{% endblock %}">
+<body class="{% block body_class %}app-shell{{ ' has-sidebar' if current_user.is_authenticated }} flex min-h-screen flex-col font-sans text-slate-900 antialiased{% endblock %}" style="--c: {{ sections[section][2] }}">
 
     <a href="#main-content"
        class="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow">
@@ -80,80 +99,87 @@
     </a>
 
     {% block header %}
-    <!-- NAVBAR -->
-    <header class="app-header border-b border-primary-900">
-        <nav class="mx-auto max-w-6xl px-4" aria-label="Navegación principal">
-             <div class="flex min-w-0 items-center justify-between py-3">
+    {% if current_user.is_authenticated %}
+    <!-- SIDEBAR -->
+    <aside id="nav-menu" class="app-sidebar" aria-label="Navegación principal">
+        <a href="{{ url_for('dashboard.home') }}" class="brand-lockup" aria-label="Objetos perdidos · Universidad Católica Sedes Sapientiae">
+            <span class="brand-logo-panel"><img class="brand-logo" src="{{ url_for('static', filename='img/ucss-logo.png', v=2) }}" alt="Universidad Católica Sedes Sapientiae (UCSS)"></span>
+            <span class="brand-product">Objetos perdidos<small>Gestión UCSS</small></span>
+        </a>
 
-                <a href="{{ url_for('main.index') }}" class="brand-lockup min-w-0" aria-label="Objetos perdidos · Universidad Católica Sedes Sapientiae">
-                    <span class="brand-logo-panel"><img class="brand-logo" src="{{ url_for('static', filename='img/ucss-logo.png', v=2) }}" alt="Universidad Católica Sedes Sapientiae (UCSS)"></span>
-                    <span class="brand-product">Objetos perdidos</span>
-                </a>
-
-                <button type="button" id="nav-toggle"
-                        class="app-menu-toggle rounded-md p-2 md:hidden"
-                        aria-controls="nav-menu" aria-expanded="false" aria-label="Abrir menú">
-                    <i class="bi bi-list text-2xl" aria-hidden="true"></i>
-                </button>
-
-                <div id="nav-menu"
-                      class="app-nav-menu absolute left-0 right-0 top-14 z-40 hidden flex-col gap-1 border-b px-4 pb-4 pt-2 shadow-sm md:static md:ml-6 md:flex md:flex-1 md:flex-row md:items-center md:gap-1 md:border-0 md:bg-transparent md:p-0 md:shadow-none">
-
-                    {% if current_user.is_authenticated %}
-
-                        <div class="flex flex-col gap-1 md:flex-row md:items-center md:gap-1">
-                            {{ nav_link(url_for('main.index'), 'Objetos', 'bi-search', endpoint in ('main.index', 'main.view', 'main.edit')) }}
-                            {{ nav_link(url_for('dashboard.home'), 'Panel', 'bi-speedometer2', endpoint.startswith('dashboard.')) }}
-                            {{ nav_link(url_for('main.import_csv'), 'Importar CSV', 'bi-upload', endpoint == 'main.import_csv') }}
-                            {{ nav_link(url_for('main.export_csv'), 'Exportar CSV', 'bi-download') }}
-                        </div>
-
-                        <div class="mt-3 flex flex-col gap-3 md:ml-auto md:mt-0 md:flex-row md:items-center">
-
-                            <a href="{{ url_for('main.add') }}" class="btn btn-primary">
-                                <i class="bi bi-plus-lg" aria-hidden="true"></i>Reportar objeto
-                            </a>
-
-                            <!-- User menu -->
-                            <div class="relative" id="user-menu-wrapper">
-                                <button type="button" id="user-menu-btn"
-                                         class="app-user-button flex w-full items-center gap-2 rounded-md px-2 py-1"
-                                        aria-haspopup="true" aria-expanded="false" aria-controls="user-menu">
-                                    <img src="{{ avatar_url(current_user) }}"
-                                         alt="Avatar de {{ current_user.username }}"
-                                         class="h-8 w-8 rounded-full border border-slate-200 object-cover">
-                                    <span class="text-sm font-medium text-slate-700">{{ current_user.username }}</span>
-                                    <i class="bi bi-chevron-down text-xs text-slate-500" aria-hidden="true"></i>
-                                </button>
-
-                                <div id="user-menu"
-                                     class="app-user-menu absolute right-0 z-50 mt-2 hidden w-56 rounded-lg border bg-white py-1 shadow-lg">
-                                    <a href="{{ url_for('profile.view_profile') }}"
-                                       class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Perfil</a>
-                                    <a href="{{ url_for('profile.change_password') }}"
-                                       class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Cambiar contraseña</a>
-                                    <form method="post" action="{{ url_for('auth.logout') }}" class="border-t border-slate-200">
-                                        {{ csrf_field() }}
-                                        <button type="submit"
-                                                class="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-100">
-                                            Cerrar sesión
-                                        </button>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-
-                    {% else %}
-
-                        <div class="flex flex-col gap-2 md:ml-auto md:flex-row md:items-center">
-                            <a href="{{ url_for('auth.login') }}" class="btn btn-ghost">Iniciar sesión</a>
-                            <a href="{{ url_for('auth.register') }}" class="btn btn-primary">Registrarse</a>
-                        </div>
-
-                    {% endif %}
-                </div>
+        <nav class="app-sidebar__nav">
+            <div class="app-sidebar__section">
+                <p class="app-sidebar__group">General</p>
+                {{ nav_link(url_for('dashboard.home'), 'dashboard', section == 'dashboard') }}
+            </div>
+            <div class="app-sidebar__section">
+                <p class="app-sidebar__group">Reportes</p>
+                {{ nav_link(url_for('main.index'), 'reports', section == 'reports') }}
+                {{ nav_link(url_for('main.add'), 'add', section == 'add') }}
+            </div>
+            <div class="app-sidebar__section">
+                <p class="app-sidebar__group">Datos</p>
+                {{ nav_link(url_for('main.import_csv'), 'import', section == 'import') }}
+                {{ nav_link(url_for('main.export_csv'), 'export') }}
             </div>
         </nav>
+
+    </aside>
+    <div class="app-sidebar__backdrop" data-nav-close hidden></div>
+    {% endif %}
+
+    <!-- TOP BAR -->
+    <header class="app-header">
+        <div class="app-header__inner">
+            <button type="button" id="nav-toggle"
+                    class="app-menu-toggle"
+                    aria-controls="nav-menu" aria-expanded="false" aria-label="Abrir menú">
+                <i class="bi bi-list" aria-hidden="true"></i>
+            </button>
+
+            {% if current_user.is_authenticated %}
+            <p class="app-breadcrumb">
+                <a href="{{ url_for('dashboard.home') }}">Objetos perdidos</a>
+                <span aria-hidden="true">/</span>
+                <strong>{{ sections[section][0] }}</strong>
+            </p>
+
+            <div class="app-header__actions">
+                <!-- User menu -->
+                <div class="relative" id="user-menu-wrapper">
+                    <button type="button" id="user-menu-btn"
+                            class="app-user-button"
+                            aria-haspopup="true" aria-expanded="false" aria-controls="user-menu">
+                        <img src="{{ avatar_url(current_user) }}"
+                             alt="Avatar de {{ current_user.username }}">
+                        <span>{{ current_user.username }}</span>
+                        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                    </button>
+
+                    <div id="user-menu" class="app-user-menu hidden">
+                        <p class="app-user-menu__head">{{ current_user.username }}<small>{{ current_user.email or 'Cuenta UCSS' }}</small></p>
+                        <a href="{{ url_for('profile.view_profile') }}" class="app-user-menu__item"><i class="bi bi-person" aria-hidden="true"></i>Perfil</a>
+                        <a href="{{ url_for('profile.change_password') }}" class="app-user-menu__item"><i class="bi bi-key" aria-hidden="true"></i>Cambiar contraseña</a>
+                        <form method="post" action="{{ url_for('auth.logout') }}">
+                            {{ csrf_field() }}
+                            <button type="submit" class="app-user-menu__item app-user-menu__item--danger">
+                                <i class="bi bi-box-arrow-right" aria-hidden="true"></i>Cerrar sesión
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <a href="{{ url_for('main.index') }}" class="brand-lockup" aria-label="Objetos perdidos · Universidad Católica Sedes Sapientiae">
+                <span class="brand-logo-panel"><img class="brand-logo" src="{{ url_for('static', filename='img/ucss-logo.png', v=2) }}" alt="Universidad Católica Sedes Sapientiae (UCSS)"></span>
+                <span class="brand-product">Objetos perdidos</span>
+            </a>
+            <div id="nav-menu" class="app-nav-menu app-header__actions">
+                <a href="{{ url_for('auth.login') }}" class="btn btn-ghost">Iniciar sesión</a>
+                <a href="{{ url_for('auth.register') }}" class="btn btn-primary">Registrarse</a>
+            </div>
+            {% endif %}
+        </div>
     </header>
     {% endblock %}
 
@@ -165,9 +191,9 @@
 
     {% block footer %}
     <!-- FOOTER -->
-    <footer class="app-footer border-t">
-        <div class="mx-auto max-w-6xl px-4 py-4 text-center text-sm text-slate-500">
-            © {{ current_year }} Objetos perdidos <span aria-hidden="true">·</span> Sistema de reportes de objetos perdidos y encontrados
+    <footer class="app-footer">
+        <div class="app-footer__inner">
+            © {{ current_year }} Objetos perdidos <span aria-hidden="true">·</span> Universidad Católica Sedes Sapientiae
         </div>
     </footer>
     {% endblock %}
@@ -177,11 +203,19 @@
         (function () {
             var navToggle = document.getElementById("nav-toggle");
             var navMenu = document.getElementById("nav-menu");
+            var backdrop = document.querySelector("[data-nav-close]");
             if (navToggle && navMenu) {
+                var setNav = function (open) {
+                    navMenu.classList.toggle("is-open", open);
+                    navToggle.setAttribute("aria-expanded", open ? "true" : "false");
+                    if (backdrop) { backdrop.hidden = !open; }
+                };
                 navToggle.addEventListener("click", function () {
-                    var hidden = navMenu.classList.toggle("hidden");
-                    navToggle.setAttribute("aria-expanded", hidden ? "false" : "true");
+                    setNav(!navMenu.classList.contains("is-open"));
                 });
+                if (backdrop) {
+                    backdrop.addEventListener("click", function () { setNav(false); });
+                }
             }
 
             var userButton = document.getElementById("user-menu-btn");
@@ -206,6 +240,14 @@
                         closeUserMenu();
                     }
                 });
+            }
+
+            // Greeting by the visitor's local hour (the server only knows UTC).
+            var greeting = document.querySelector("[data-greeting]");
+            if (greeting) {
+                var hour = new Date().getHours();
+                var salute = hour >= 5 && hour < 12 ? "Buenos días" : (hour >= 12 && hour < 19 ? "Buenas tardes" : "Buenas noches");
+                greeting.textContent = salute + ", " + greeting.getAttribute("data-greeting");
             }
 
             var closeButtons = document.querySelectorAll("[data-flash-close]");
