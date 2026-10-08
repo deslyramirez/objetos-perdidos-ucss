@@ -443,12 +443,21 @@ def test_add_accepts_found_and_returned_status_and_today(maria):
     assert Item.query.filter_by(name="Devuelto").one().status == "returned"
 
 
-def test_add_without_optional_fields_stores_none(maria):
-    data = _item_data(category="", description="  ")
-    _post_form(maria, "/add", data)
+@pytest.mark.parametrize(
+    "field, message",
+    [("description", "Ingrese una descripción del objeto."), ("category", "Seleccione una categoría.")],
+)
+def test_add_requires_every_field(maria, field, message):
+    response = _post_form(maria, "/add", _item_data(**{field: "  " if field == "description" else ""}))
 
-    item = Item.query.one()
-    assert (item.category, item.description) == (None, None)
+    assert Item.query.count() == 0
+    assert message in _main(_text(response))
+
+
+def test_add_form_marks_every_field_as_required(maria):
+    body = _main(_text(maria.get("/add")))
+
+    assert body.count("(obligatorio)") == 8
 
 
 def test_add_requires_contact(maria):
@@ -800,11 +809,12 @@ def test_edit_updates_fields_and_redirects_to_the_detail(maria, owned_item):
     assert "Encontrado" in html
 
 
-def test_edit_clearing_the_category_stores_none(maria, owned_item):
-    _post_form(maria, f"/edit/{owned_item.id}", _item_data(category=""))
+def test_edit_cannot_clear_the_category(maria, owned_item):
+    response = _post_form(maria, f"/edit/{owned_item.id}", _item_data(category=""))
 
+    assert "Seleccione una categoría." in _main(_text(response))
     db.session.expire_all()
-    assert db.session.get(Item, owned_item.id).category is None
+    assert db.session.get(Item, owned_item.id).category == owned_item.category
 
 
 def test_edit_rejects_a_future_date_and_changes_nothing(maria, owned_item):

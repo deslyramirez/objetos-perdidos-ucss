@@ -234,7 +234,7 @@ class AddItemForm(FlaskForm):
         "Descripción",
         filters=[_strip],
         validators=[
-            Optional(),
+            DataRequired(message="Ingrese una descripción del objeto."),
             Length(
                 max=ITEM_DESCRIPTION_MAX,
                 message=f"La descripción no puede superar los {ITEM_DESCRIPTION_MAX} caracteres.",
@@ -249,6 +249,7 @@ class AddItemForm(FlaskForm):
         choices=ITEM_CATEGORY_CHOICES,
         default="",
         validate_choice=False,
+        validators=[DataRequired(message="Seleccione una categoría.")],
     )
     location = StringField(
         "Lugar",
@@ -271,6 +272,7 @@ class AddItemForm(FlaskForm):
         choices=ITEM_STATUS_CHOICES,
         default=DEFAULT_STATUS,
         validate_choice=False,
+        validators=[DataRequired(message="Seleccione un estado.")],
     )
     contact = StringField(
         "Contacto",
