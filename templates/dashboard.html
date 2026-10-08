@@ -7,7 +7,6 @@
 {% set s = summary %}
 {% set k = s.kpis %}
 <div class="flex flex-col gap-5">
-  <p class="page-greeting" data-greeting="{{ current_user.username }}">Hola, {{ current_user.username }}</p>
   {% call page_header("Panel mensual", s.month_label, "bi-bar-chart-line") %}
     <a class="btn btn-primary" href="{{ url_for('main.export_csv', mes=s.mes) }}">
       <i class="bi bi-download" aria-hidden="true"></i> Exportar mes (CSV)

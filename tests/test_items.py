@@ -70,7 +70,18 @@ def _with_image(data, content, filename):
     return {**data, "image": (BytesIO(content), filename)}
 
 
+def _png_bytes():
+    from PIL import Image
+
+    buffer = BytesIO()
+    Image.new("RGB", (3, 3), (10, 120, 10)).save(buffer, "PNG")
+    return buffer.getvalue()
+
+
 def _post_form(browser, url, data, **kwargs):
+    # A photo is required to create a report; attach a valid one unless the test sets its own.
+    if url == "/add" and "image" not in data:
+        data = _with_image(data, _png_bytes(), "foto.png")
     return browser.post(url, data=data, content_type="multipart/form-data", **kwargs)
 
 
@@ -378,7 +389,7 @@ def test_add_form_is_spanish_sectioned_and_multipart(maria):
     assert "Nuevo reporte" in html.split("</title>")[0]
     assert re.search(r'<form[^>]*enctype="multipart/form-data"', body)
     assert 'name="csrf_token"' in body
-    for label in ("Objeto", "Descripción", "Categoría", "Lugar", "Fecha del suceso", "Estado", "Contacto (opcional)", "Fotografía (opcional)"):
+    for label in ("Objeto", "Descripción", "Categoría", "Lugar", "Fecha del suceso", "Estado", "Contacto", "Fotografía"):
         assert label in body, label
     for option in ("Seleccione una categoría", "Documentos", "Electrónica", "Llaves", "Ropa y accesorios", "Mochilas y útiles", "Otros", "Perdido", "Encontrado", "Entregado"):
         assert option in body, option
@@ -419,7 +430,7 @@ def test_add_creates_a_report_for_the_current_user(maria, maria_user):
     assert (item.name, item.description, item.category) == ("Mochila azul", "Con un llavero rojo", "bags")
     assert (item.location, item.event_date, item.status) == ("Biblioteca central", date(2026, 3, 10), "lost")
     assert item.contact == "ana@universidad.edu"
-    assert item.image_filename is None
+    assert item.image_filename.endswith(".png")
     assert "Mochila azul" in _main(html)
 
 
@@ -433,11 +444,25 @@ def test_add_accepts_found_and_returned_status_and_today(maria):
 
 
 def test_add_without_optional_fields_stores_none(maria):
-    data = _item_data(category="", description="  ", contact="")
+    data = _item_data(category="", description="  ")
     _post_form(maria, "/add", data)
 
     item = Item.query.one()
-    assert (item.category, item.description, item.contact) == (None, None, None)
+    assert (item.category, item.description) == (None, None)
+
+
+def test_add_requires_contact(maria):
+    response = _post_form(maria, "/add", _item_data(contact="  "))
+
+    assert Item.query.count() == 0
+    assert "Ingrese un correo o teléfono de contacto." in _main(_text(response))
+
+
+def test_add_requires_a_photo(maria):
+    response = maria.post("/add", data=_item_data(), content_type="multipart/form-data")
+
+    assert Item.query.count() == 0
+    assert "Suba una fotografía del objeto." in _main(_text(response))
 
 
 def test_add_strips_whitespace(maria):
@@ -761,7 +786,7 @@ def test_edit_updates_fields_and_redirects_to_the_detail(maria, owned_item):
     response = _post_form(
         maria,
         f"/edit/{owned_item.id}",
-        _item_data(name="Mochila negra", location="Aula 12", event_date="2026-02-02", status="found", category="clothing", contact=""),
+        _item_data(name="Mochila negra", location="Aula 12", event_date="2026-02-02", status="found", category="clothing", contact="555-0100"),
         follow_redirects=True,
     )
     html = _text(response)
@@ -771,7 +796,7 @@ def test_edit_updates_fields_and_redirects_to_the_detail(maria, owned_item):
     db.session.expire_all()
     item = db.session.get(Item, owned_item.id)
     assert (item.name, item.location, item.event_date) == ("Mochila negra", "Aula 12", date(2026, 2, 2))
-    assert (item.status, item.category, item.contact) == ("found", "clothing", None)
+    assert (item.status, item.category, item.contact) == ("found", "clothing", "555-0100")
     assert "Encontrado" in html
 
 

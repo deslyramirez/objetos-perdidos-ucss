@@ -866,13 +866,6 @@ def test_empty_database_renders(maria):
     assert "dashboard-chart-data" not in _text(response)
 
 
-def test_dashboard_greets_the_user_by_name(maria):
-    html = _get(maria)
-
-    assert re.search(r'<p class="page-greeting" data-greeting="maria">Hola, maria</p>', html)
-    assert "Buenos días" in html and "Buenas tardes" in html and "Buenas noches" in html
-
-
 # --- formal Spanish, no emojis ------------------------------------------------
 
 

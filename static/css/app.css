@@ -2387,7 +2387,7 @@ body.app-shell:not(.auth-page) .alert { border-radius: .8rem; border-left-width:
   body.app-shell:not(.auth-page) .object-card:hover { transform: none !important; }
 }
 
-/* Sidebar v28: white labels on framed groups; greeting above the panel title. */
+/* Sidebar v28: white labels on framed groups. */
 .app-sidebar__section {
   margin-bottom: .75rem;
   padding: .55rem .5rem .35rem;
@@ -2403,5 +2403,3 @@ body.app-shell .app-sidebar .app-nav-link.is-active::before { left: -.5rem; }
 .app-sidebar .brand-product small { color: #fff; opacity: .85; }
 .app-sidebar__status,
 .app-sidebar__status p { color: #fff; }
-.page-greeting { margin-bottom: .35rem; color: var(--muted); font-size: 1rem; font-weight: 500; }
-.page-greeting { color: var(--ink-2); font-size: 1.05rem; font-weight: 600; }

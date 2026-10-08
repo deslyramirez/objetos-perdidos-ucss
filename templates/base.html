@@ -242,14 +242,6 @@
                 });
             }
 
-            // Greeting by the visitor's local hour (the server only knows UTC).
-            var greeting = document.querySelector("[data-greeting]");
-            if (greeting) {
-                var hour = new Date().getHours();
-                var salute = hour >= 5 && hour < 12 ? "Buenos días" : (hour >= 12 && hour < 19 ? "Buenas tardes" : "Buenas noches");
-                greeting.textContent = salute + ", " + greeting.getAttribute("data-greeting");
-            }
-
             var closeButtons = document.querySelectorAll("[data-flash-close]");
             for (var i = 0; i < closeButtons.length; i++) {
                 closeButtons[i].addEventListener("click", function (event) {

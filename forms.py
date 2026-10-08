@@ -273,10 +273,10 @@ class AddItemForm(FlaskForm):
         validate_choice=False,
     )
     contact = StringField(
-        "Contacto (opcional)",
+        "Contacto",
         filters=[_strip],
         validators=[
-            Optional(),
+            DataRequired(message="Ingrese un correo o teléfono de contacto."),
             Length(
                 max=ITEM_CONTACT_MAX,
                 message=f"El contacto no puede superar los {ITEM_CONTACT_MAX} caracteres.",
@@ -284,8 +284,9 @@ class AddItemForm(FlaskForm):
         ],
     )
     image = FileField(
-        "Fotografía (opcional)",
+        "Fotografía",
         validators=[
+            FileRequired(message="Suba una fotografía del objeto."),
             FileAllowed(ITEM_IMAGE_EXTENSIONS, "Formato no permitido. Use PNG, JPG, GIF o WEBP."),
         ],
     )
@@ -311,8 +312,11 @@ class AddItemForm(FlaskForm):
 
 
 class EditItemForm(AddItemForm):
+    # Editing keeps the current photo when no new file is chosen.
+    image = FileField(
+        "Cambiar fotografía (opcional)",
+        validators=[
+            FileAllowed(ITEM_IMAGE_EXTENSIONS, "Formato no permitido. Use PNG, JPG, GIF o WEBP."),
+        ],
+    )
     submit = SubmitField("Guardar cambios")
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.image.label.text = "Cambiar fotografía (opcional)"
