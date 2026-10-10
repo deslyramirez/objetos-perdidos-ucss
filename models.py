@@ -19,7 +19,7 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True)
     bio = db.Column(db.String(300))
 
-    # Administrators may delete any report (fake, duplicated or offensive). Set with hacer_admin.py.
+    # The administrator approves reports and owns the panel, import and export (see admin.py).
     is_admin = db.Column(db.Boolean, nullable=False, default=False, server_default="0")
 
     # avatar filename (default avatar included in static folder)
@@ -64,7 +64,16 @@ class Item(db.Model):
     )
     contact = db.Column(db.String(120), nullable=True)
 
+    # Moderation. New reports start 'pending'; rows that existed before moderation keep the
+    # server default 'approved' so nothing already published disappears.
+    approval = db.Column(db.String(20), nullable=False, default="pending", server_default="approved")
+    rejection_reason = db.Column(db.String(300), nullable=True)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @property
+    def is_approved(self):
+        return self.approval == "approved"
 
     @property
     def is_returned(self):
@@ -127,3 +136,28 @@ class Message(db.Model):
     edited_at = db.Column(db.DateTime, nullable=True)
 
     sender = db.relationship("User")
+
+
+# -----------------------------
+# COMMUNITY FLAGS ("Reportar publicación")
+# -----------------------------
+class Flag(db.Model):
+    __table_args__ = (db.UniqueConstraint("item_id", "user_id", name="uq_flag_item_user"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    item_id = db.Column(db.Integer, db.ForeignKey("item.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    reason = db.Column(db.String(20), nullable=False)
+    comment = db.Column(db.String(300), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    item = db.relationship("Item", backref=db.backref("flags", cascade="all, delete-orphan"))
+    user = db.relationship("User")
+
+
+def visible_items_filter(user=None):
+    """Published reports, plus the user's own reports in any moderation state."""
+    published = Item.approval == "approved"
+    if user is not None and getattr(user, "is_authenticated", False):
+        return db.or_(published, Item.user_id == user.id)
+    return published

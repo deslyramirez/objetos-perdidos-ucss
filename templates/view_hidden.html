@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% from "_macros.html" import empty_state %}
+{% block title %}Publicación no disponible{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-3xl">
+  <a href="{{ url_for('main.index') }}" class="back-link">
+    <i class="bi bi-arrow-left" aria-hidden="true"></i> Volver a los objetos
+  </a>
+  <div class="mt-4">
+    {{ empty_state(
+        "Publicación no disponible",
+        "Esta publicación está en revisión o fue desaprobada por el administrador.",
+        url_for('main.index'), "Ver otros reportes", icon="bi-eye-slash") }}
+  </div>
+</div>
+{% endblock %}

@@ -33,6 +33,8 @@
         </div>
         {% endif %}
         <span class="object-card__status">{{ status_badge(item.status) }}</span>
+        {% if item.approval == 'pending' %}<span class="approval-flag approval--pending"><i class="bi bi-hourglass-split" aria-hidden="true"></i> En revisión</span>
+        {% elif item.approval == 'rejected' %}<span class="approval-flag approval--rejected"><i class="bi bi-x-octagon" aria-hidden="true"></i> Desaprobado</span>{% endif %}
       </div>
       <div class="object-card__body">
         <h2 class="object-card__title">

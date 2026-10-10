@@ -35,7 +35,12 @@ def _location_path(response):
 
 @pytest.fixture
 def maria(browser_for):
-    return browser_for("maria")
+    """The administrator: the panel, import and export belong to that role."""
+    browser = browser_for("maria")
+    user = User.query.filter_by(username="maria").one()
+    user.is_admin = True
+    db.session.commit()
+    return browser
 
 
 @pytest.fixture
@@ -152,7 +157,7 @@ def test_export_formats_dates_and_keeps_accents(maria, maria_user, make_item):
 
 
 def test_export_leaves_missing_values_empty(maria):
-    item = Item(name="Minimo")
+    item = Item(name="Minimo", approval="approved")
     db.session.add(item)
     db.session.commit()
 
@@ -718,7 +723,8 @@ def test_valid_rows_are_inserted_in_a_single_commit(maria, monkeypatch):
 
 
 def test_import_requires_a_csrf_token(csrf_app, make_csrf_user, csrf_token):
-    make_csrf_user("maria", "password123")
+    make_csrf_user("maria", "password123").is_admin = True
+    db.session.commit()
     client = csrf_app.test_client()
     token = csrf_token(client, "/auth/login")
     client.post("/auth/login", data={"username": "maria", "password": "password123", "csrf_token": token})

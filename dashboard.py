@@ -5,11 +5,13 @@ import json
 
 from flask import Blueprint, redirect, render_template, request, url_for
 from flask_login import login_required
+
+from admin import admin_required
 from sqlalchemy import case, func
 
 from domain import CATEGORY_LABELS, month_bounds, parse_month
 from extensions import db
-from models import Item
+from models import Item, visible_items_filter
 from utils import MONTH_NAMES, today_local
 
 dashboard = Blueprint("dashboard", __name__)
@@ -49,10 +51,11 @@ def month_summary(year, month):
     previous_first, previous_next = (None, None)
     if previous_year >= 1:
         previous_first, previous_next = month_bounds(previous_year, previous_month)
-    period = Item.event_date >= first_day, Item.event_date < next_month
+    visible = visible_items_filter()  # published reports only
+    period = Item.event_date >= first_day, Item.event_date < next_month, visible
     previous_period = None
     if previous_first is not None:
-        previous_period = Item.event_date >= previous_first, Item.event_date < previous_next
+        previous_period = Item.event_date >= previous_first, Item.event_date < previous_next, visible
 
     status_rows = (
         db.session.query(Item.status, func.count(Item.id))
@@ -134,7 +137,7 @@ def month_summary(year, month):
 
 
 @dashboard.route("/")
-@login_required
+@admin_required
 def home():
     default = today_local()
     selected = parse_month(request.args.get("mes", ""), (default.year, default.month))
@@ -147,7 +150,7 @@ def home():
 
 
 @dashboard.route("")
-@login_required
+@admin_required
 def legacy_redirect():
     query = request.query_string.decode("utf-8", errors="ignore")
     target = url_for("dashboard.home")

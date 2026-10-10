@@ -99,3 +99,19 @@ CONVERSATION_KIND_ICONS = {
 def default_conversation_kind(status):
     """A lost object is answered with "Lo encontré", a found one with "Es mío"."""
     return {"lost": "finder", "found": "owner"}.get(status, "question")
+
+
+# Community moderation: anyone can flag someone else's report once.
+FLAG_REASONS = {
+    "fake": "Es falso o engañoso",
+    "duplicate": "Está repetido",
+    "offensive": "Contenido ofensivo o inapropiado",
+    "other": "Otro motivo",
+}
+
+# Moderation: new reports wait until the administrator approves them.
+APPROVAL_LABELS = {
+    "pending": "En revisión",
+    "approved": "Publicado",
+    "rejected": "Desaprobado",
+}

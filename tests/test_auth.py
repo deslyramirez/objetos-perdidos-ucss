@@ -183,7 +183,7 @@ def test_login_success_redirects_home_with_spanish_flash(client, make_user):
     response = _post_login(client)
 
     assert response.status_code == 302
-    assert _location_path(response) == "/dashboard/"
+    assert _location_path(response) == "/"
 
     page = client.get("/")
     html = _text(page)
@@ -248,7 +248,7 @@ def test_login_has_no_minimum_password_length(client, make_user):
     response = _post_login(client, password="abc")
 
     assert response.status_code == 302
-    assert _location_path(response) == "/dashboard/"
+    assert _location_path(response) == "/"
 
 
 def test_login_honors_safe_next_target(client, make_user):
@@ -277,7 +277,7 @@ def test_login_ignores_unsafe_next_target(client, make_user, next_url):
 
     assert response.status_code == 302
     assert urlparse(response.headers["Location"]).netloc == ""
-    assert _location_path(response) == "/dashboard/"
+    assert _location_path(response) == "/"
 
 
 def test_login_form_keeps_safe_next_in_action(client):
@@ -320,7 +320,7 @@ def test_authenticated_user_is_redirected_away_from_auth_pages(
     response = client.get(url)
 
     assert response.status_code == 302
-    assert _location_path(response) == "/dashboard/"
+    assert _location_path(response) == "/"
 
 
 @pytest.mark.parametrize("url", ["/auth/login", "/auth/register"])
@@ -331,7 +331,7 @@ def test_authenticated_user_cannot_post_to_auth_pages(client, make_user, login, 
     response = client.post(url, data={"username": "other", "password": "password123"})
 
     assert response.status_code == 302
-    assert _location_path(response) == "/dashboard/"
+    assert _location_path(response) == "/"
 
 
 # --- register ---------------------------------------------------------------
@@ -369,7 +369,7 @@ def test_registered_user_can_log_in(client):
 
     response = _post_login(client, username="nuevo", password="secreto1")
 
-    assert _location_path(response) == "/dashboard/"
+    assert _location_path(response) == "/"
 
 
 def test_register_trims_username_and_email(client):
@@ -551,7 +551,7 @@ def test_login_with_valid_csrf_token_works(csrf_app, make_csrf_user, csrf_token)
     )
 
     assert response.status_code == 302
-    assert _location_path(response) == "/dashboard/"
+    assert _location_path(response) == "/"
     assert client.get("/").status_code == 200
 
 

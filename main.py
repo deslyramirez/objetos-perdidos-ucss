@@ -11,6 +11,7 @@ from io import StringIO
 from flask import (
     Blueprint,
     Response,
+    abort,
     current_app,
     flash,
     redirect,
@@ -29,7 +30,9 @@ from werkzeug.utils import secure_filename
 from domain import (
     CATEGORY_LABELS,
     CONVERSATION_KINDS,
+    APPROVAL_LABELS,
     DEFAULT_STATUS,
+    FLAG_REASONS,
     LEGACY_CATEGORY_MAP,
     STATUS_LABELS,
     default_conversation_kind,
@@ -46,8 +49,10 @@ from forms import (
     AddItemForm,
     ContactForm,
     EditItemForm,
+    FlagForm,
 )
-from models import Item
+from admin import admin_required, is_admin
+from models import Flag, Item, visible_items_filter
 from utils import formato_numero, today_local
 
 bp = Blueprint("main", __name__, template_folder="templates")
@@ -211,6 +216,8 @@ def _read_filters(args):
 
 
 def _apply_filters(query, filters, with_status=True):
+    # Only published reports, plus the user's own ones while they wait for review.
+    query = query.filter(visible_items_filter(current_user))
     if filters["q"]:
         pattern = f"%{_escape_like(filters['q'].casefold())}%"
         query = query.filter(
@@ -302,17 +309,31 @@ def view(item_id):
     return render_item_view(item)
 
 
-def render_item_view(item, contact_form=None):
-    """Render the report page; `contact_form` carries errors back from messages.start."""
+def render_item_view(item, contact_form=None, flag_form=None):
+    """Render the report page; the forms carry errors back from messages.start and flag."""
     from messages import conversation_for, received_conversations, unread_by_conversation
 
     is_owner = item.user_id is not None and item.user_id == current_user.id
-    context = {"item": item, "is_owner": is_owner}
+    admin_view = is_admin(current_user)
+    flag_count = Flag.query.filter_by(item_id=item.id).count()
+    context = {
+        "item": item,
+        "is_owner": is_owner,
+        "admin_view": admin_view,
+        "flag_count": flag_count,
+        "approval_labels": APPROVAL_LABELS,
+    }
+    if not item.is_approved and not is_owner and not admin_view:
+        return render_template("view_hidden.html", **context), 404
+    if not is_owner and item.is_approved:
+        context["my_flag"] = Flag.query.filter_by(item_id=item.id, user_id=current_user.id).first()
+        context["flag_form"] = flag_form or FlagForm()
+        context["flag_reasons"] = FLAG_REASONS
     if is_owner:
         received = received_conversations(item)
         context["received"] = received
         context["received_unread"] = unread_by_conversation(current_user.id, [c.id for c in received])
-    elif item.user_id is not None:
+    elif item.user_id is not None and item.is_approved:
         context["my_conversation"] = conversation_for(item.id, current_user.id)
         if contact_form is None:
             contact_form = ContactForm(kind=default_conversation_kind(item.status))
@@ -349,6 +370,8 @@ def add():
             contact=form.contact.data or None,
             image_filename=image_filename,
             user_id=current_user.id,
+            # The administrator publishes directly; everyone else waits for approval.
+            approval="approved" if is_admin(current_user) else "pending",
         )
         db.session.add(item)
         try:
@@ -360,7 +383,10 @@ def add():
             form.form_errors.append("No se pudo guardar el reporte. Intente nuevamente.")
             return render_template("add.html", form=form)
 
-        flash("Reporte registrado correctamente.", "success")
+        if item.is_approved:
+            flash("Reporte registrado y publicado.", "success")
+        else:
+            flash("Reporte registrado. Quedó «En revisión» hasta que el administrador lo apruebe.", "success")
         return redirect(url_for("main.index"))
 
     return render_template("add.html", form=form)
@@ -403,6 +429,10 @@ def edit(item_id):
         item.contact = form.contact.data or None
         if new_image:
             item.image_filename = new_image
+        # Any change by a regular user goes back to review, so approved content cannot be swapped.
+        if not is_admin(current_user):
+            item.approval = "pending"
+            item.rejection_reason = None
 
         try:
             db.session.commit()
@@ -416,10 +446,50 @@ def edit(item_id):
         if new_image:
             _remove_image_file(previous_image)
 
-        flash("Reporte actualizado correctamente.", "success")
+        if item.is_approved:
+            flash("Reporte actualizado correctamente.", "success")
+        else:
+            flash("Reporte actualizado. Vuelve a estar «En revisión» hasta que el administrador lo apruebe.", "success")
         return redirect(url_for("main.view", item_id=item.id))
 
     return render_template("edit.html", form=form, item=item)
+
+
+# -----------------------------
+# FLAG A REPORT ("REPORTAR PUBLICACIÓN", ANYONE BUT THE CREATOR, ONCE)
+# -----------------------------
+@bp.route("/item/<int:item_id>/flag", methods=["POST"])
+@login_required
+def flag(item_id):
+    item = db.get_or_404(Item, item_id)
+    back = redirect(url_for("main.view", item_id=item.id))
+    if item.user_id == current_user.id:
+        flash("No puede reportar su propia publicación.", "warning")
+        return back
+    if not item.is_approved:
+        abort(404)
+    if Flag.query.filter_by(item_id=item.id, user_id=current_user.id).first():
+        flash("Ya reportó esta publicación. Gracias por avisar.", "info")
+        return back
+
+    form = FlagForm()
+    if not form.validate_on_submit():
+        return render_item_view(item, flag_form=form), 400
+
+    db.session.add(
+        Flag(item_id=item.id, user_id=current_user.id, reason=form.reason.data,
+             comment=form.comment.data or None)
+    )
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception("Could not flag report %s", item_id)
+        flash("No se pudo registrar el reporte. Intente nuevamente.", "danger")
+        return back
+
+    flash("Gracias por avisar. El administrador revisará la publicación.", "success")
+    return back
 
 
 # -----------------------------
@@ -428,14 +498,9 @@ def edit(item_id):
 @bp.route("/delete/<int:item_id>", methods=["POST"])
 @login_required
 def delete(item_id):
-    item = db.get_or_404(Item, item_id)
-    as_admin = current_user.is_admin and item.user_id != current_user.id
-    if not as_admin:
-        item, denied = _owned_item(item_id, "main.index")
-        if denied is not None:
-            return denied
-    if as_admin:
-        current_app.logger.info("Admin %s deleted report %s", current_user.username, item_id)
+    item, denied = _owned_item(item_id, "main.index")
+    if denied is not None:
+        return denied
 
     image_filename = item.image_filename
     db.session.delete(item)
@@ -491,7 +556,7 @@ def _csv_text(value):
 
 
 @bp.route("/export/csv")
-@login_required
+@admin_required
 def export_csv():
     filters = _read_filters(request.args)
     items = (
@@ -668,7 +733,7 @@ def _import_error(message):
 
 
 @bp.route("/import/csv", methods=["GET", "POST"])
-@login_required
+@admin_required
 def import_csv():
     if request.method == "GET":
         return render_template(
@@ -719,7 +784,7 @@ def import_csv():
         if reason:
             skipped.append(f"fila {row_number} ({reason})")
         else:
-            new_items.append(Item(user_id=current_user.id, **values))
+            new_items.append(Item(user_id=current_user.id, approval="approved", **values))
 
     if new_items:
         db.session.add_all(new_items)

@@ -244,7 +244,10 @@ def test_upgrade_adds_only_the_missing_columns(legacy_engine):
 
 
 def test_upgraded_table_works_with_the_item_model(legacy_engine):
+    from admin import ensure_moderation_columns
+
     upgrade_legacy_schema(legacy_engine)
+    ensure_moderation_columns(legacy_engine)  # create_app runs both on start
 
     with Session(legacy_engine) as session:
         item = session.get(Item, 2)

@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from extensions import db
 from forms import LoginForm, RegisterForm
 from models import User
+from admin import home_endpoint
 from utils import is_safe_redirect_target
 
 bp = Blueprint("auth", __name__, template_folder="templates")
@@ -24,7 +25,7 @@ def _utc_now():
 @bp.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for("dashboard.home"))
+        return redirect(url_for(home_endpoint(current_user)))
 
     form = LoginForm()
 
@@ -47,7 +48,7 @@ def login():
 
         login_user(user)
         flash("Sesión iniciada correctamente.", "success")
-        return redirect(safe_next or url_for("dashboard.home"))
+        return redirect(safe_next or url_for(home_endpoint(user)))
 
     return render_template("login.html", form=form, login_action=login_action)
 
@@ -58,7 +59,7 @@ def login():
 @bp.route("/register", methods=["GET", "POST"])
 def register():
     if current_user.is_authenticated:
-        return redirect(url_for("dashboard.home"))
+        return redirect(url_for(home_endpoint(current_user)))
 
     form = RegisterForm()
 

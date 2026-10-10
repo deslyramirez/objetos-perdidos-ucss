@@ -28,6 +28,39 @@
         <div class="min-w-0 md:col-start-2 md:row-start-1 md:row-span-2">
           <p class="detail-eyebrow"><i class="bi {{ CATEGORY_ICONS[cat] }}" aria-hidden="true"></i> {{ item.category|categoria_label if item.category else "Sin categoría" }}</p>
           <h1 class="detail-title">{{ item.name }}</h1>
+          {% if not item.is_approved and (is_owner or admin_view) %}
+          <div class="alert {{ 'alert-danger' if item.approval == 'rejected' else 'alert-info' }} mt-3" role="status">
+            <i class="bi {{ 'bi-x-octagon-fill' if item.approval == 'rejected' else 'bi-hourglass-split' }} mt-0.5" aria-hidden="true"></i>
+            <div>
+              {% if item.approval == 'rejected' %}
+              <p><strong>Desaprobado por el administrador.</strong> No es visible para la comunidad.{% if item.rejection_reason %} Motivo: {{ item.rejection_reason }}{% endif %}</p>
+              {% if is_owner %}<p class="mt-1">Puede corregirlo con «Editar»: volverá a revisión.</p>{% endif %}
+              {% else %}
+              <p><strong>En revisión.</strong> Solo usted{{ ' y el administrador' if is_owner else '' }} puede verlo hasta que el administrador lo apruebe.</p>
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+          {% if admin_view %}
+          <div class="admin-tools mt-3">
+            <span class="admin-badge"><i class="bi bi-shield-check" aria-hidden="true"></i> Administrador</span>
+            {% if flag_count %}<span class="text-sm"><i class="bi bi-flag-fill" aria-hidden="true"></i> {{ flag_count }} {{ 'reporte' if flag_count == 1 else 'reportes' }} de la comunidad</span>{% endif %}
+            {% if not item.is_approved %}
+            <form method="post" action="{{ url_for('admin.approve', item_id=item.id) }}">
+              {{ csrf_field() }}<input type="hidden" name="next" value="{{ url_for('main.view', item_id=item.id) }}">
+              <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check2-circle" aria-hidden="true"></i> Aprobar</button>
+            </form>
+            {% endif %}
+            {% if item.approval != 'rejected' %}
+            <form method="post" action="{{ url_for('admin.reject', item_id=item.id) }}" class="admin-tools__reject">
+              {{ csrf_field() }}<input type="hidden" name="next" value="{{ url_for('main.view', item_id=item.id) }}">
+              <label class="sr-only" for="reject-reason">Motivo</label>
+              <input id="reject-reason" class="form-input" name="reason" maxlength="300" placeholder="Motivo (opcional)">
+              <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-x-circle" aria-hidden="true"></i> Desaprobar</button>
+            </form>
+            {% endif %}
+          </div>
+          {% endif %}
 
           {% set steps = [('lost', 'Perdido'), ('found', 'Encontrado'), ('returned', 'Entregado')] %}
           {% set current = {'lost': 0, 'found': 1, 'returned': 2}.get(item.status, 0) %}
@@ -102,12 +135,6 @@
           <p class="mt-8 text-sm text-slate-500">
             <i class="bi bi-lock" aria-hidden="true"></i> Solo quien creó el reporte puede modificarlo.
           </p>
-          {% if current_user.is_admin %}
-          <div class="admin-tools mt-3">
-            <span class="admin-badge"><i class="bi bi-shield-check" aria-hidden="true"></i> Administrador</span>
-            {{ delete_form(url_for('main.delete', item_id=item.id), 'Eliminar reporte', '¿Eliminar el reporte «' ~ item.name ~ '» de ' ~ (item.user.username if item.user else 'otro usuario') ~ '? Se borrarán también su foto y sus mensajes. No se puede deshacer.') }}
-          </div>
-          {% endif %}
 
           {% endif %}
         </div>
@@ -159,6 +186,25 @@
               </button>
             </form>
           </section>
+          {% endif %}
+
+          {% if flag_form is defined %}
+          <div class="flag-box mt-4">
+            {% if my_flag %}
+            <p class="flag-box__done"><i class="bi bi-flag-fill" aria-hidden="true"></i> Ya reportó esta publicación ({{ flag_reasons.get(my_flag.reason, my_flag.reason)|lower }}). Gracias por avisar.</p>
+            {% else %}
+            <details{% if flag_form.errors %} open{% endif %}>
+              <summary class="flag-box__toggle"><i class="bi bi-flag" aria-hidden="true"></i> Reportar publicación</summary>
+              <form method="post" action="{{ url_for('main.flag', item_id=item.id) }}" class="mt-3" novalidate>
+                {{ flag_form.hidden_tag() }}
+                <p class="text-sm text-slate-600 mb-3">Avise si es falsa, está repetida o es inapropiada. El administrador la revisará.</p>
+                {{ field(flag_form.reason) }}
+                {{ field(flag_form.comment, rows=2, maxlength=300, placeholder='Opcional: cuéntenos qué está mal.') }}
+                <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-flag" aria-hidden="true"></i> Enviar reporte</button>
+              </form>
+            </details>
+            {% endif %}
+          </div>
           {% endif %}
           {% endif %}
         </div>

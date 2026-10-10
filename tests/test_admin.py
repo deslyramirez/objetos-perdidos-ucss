@@ -1,134 +1,250 @@
-"""Administrator role: may delete any report, nothing else changes."""
+"""Administrator moderation, community flags and the administrator account."""
 
 import pytest
 from sqlalchemy import create_engine, inspect
 
-from admin import ensure_user_columns, set_admin
+from admin import create_admin_account, ensure_admin_from_env, ensure_moderation_columns
 from extensions import db
-from models import Conversation, Item, Message, User
+from models import Conversation, Flag, Item, User
 
 
 def _text(response):
     return response.get_data(as_text=True)
 
 
-@pytest.fixture
-def report(app, browser_for, make_item):
-    browser_for("carlos")
-    owner = User.query.filter_by(username="carlos").one()
-    return make_item(owner, name="Paraguas negro")
+def _nav(html):
+    return html.split("<main", 1)[0]
 
 
 @pytest.fixture
 def admin(browser_for):
-    browser = browser_for("desly")
-    set_admin("desly")
+    browser = browser_for("jefa")
+    User.query.filter_by(username="jefa").one().is_admin = True
+    db.session.commit()
     return browser
 
 
-def test_new_users_are_not_administrators(app, make_user):
-    assert make_user("ana").is_admin is False
+@pytest.fixture
+def carlos(browser_for):
+    return browser_for("carlos")
 
 
-def test_set_admin_grants_and_revokes_ignoring_case(app, make_user):
-    make_user("Desly30")
-
-    assert set_admin("desly30").is_admin is True
-    assert set_admin("DESLY30", value=False).is_admin is False
-    assert set_admin("nadie") is None
+@pytest.fixture
+def maria(browser_for):
+    return browser_for("maria")
 
 
-def test_admin_sees_the_delete_button_on_other_reports(admin, report):
-    html = _text(admin.get(f"/item/{report.id}"))
-
-    assert "Administrador" in html
-    assert f'action="/delete/{report.id}"' in html
-    assert f'href="/edit/{report.id}"' not in html
+def _carlos():
+    return User.query.filter_by(username="carlos").one()
 
 
-def test_admin_can_delete_any_report_with_its_messages(admin, browser_for, report):
-    maria = browser_for("maria")
-    maria.post(f"/messages/start/{report.id}", data={"kind": "owner", "body": "Es mío, tiene mango de madera."})
-    assert Conversation.query.count() == 1
+def _add(browser, png, name="Mochila roja"):
+    from io import BytesIO
 
-    response = admin.post(f"/delete/{report.id}")
-
-    assert response.status_code == 302
-    assert Item.query.count() == 0
-    assert Conversation.query.count() == 0 and Message.query.count() == 0
-
-
-def test_regular_users_still_cannot_delete_other_reports(browser_for, report):
-    maria = browser_for("maria")
-
-    assert f'action="/delete/{report.id}"' not in _text(maria.get(f"/item/{report.id}"))
-    maria.post(f"/delete/{report.id}")
-    assert Item.query.count() == 1
+    data = {
+        "name": name, "description": "Con llavero", "category": "bags", "location": "Cafetería",
+        "event_date": "2026-03-10", "status": "lost", "contact": "999 111 222",
+        "image": (BytesIO(png), "foto.png"),
+    }
+    return browser.post("/add", data=data, content_type="multipart/form-data", follow_redirects=True)
 
 
-def test_admin_still_cannot_edit_other_reports(admin, report):
-    admin.post(f"/edit/{report.id}", data={"name": "Cambiado"})
-
-    assert db.session.get(Item, report.id).name == "Paraguas negro"
+# --- publishing waits for approval ----------------------------------------------
 
 
-def test_admin_cannot_read_private_conversations(admin, browser_for, report):
-    maria = browser_for("maria")
-    maria.post(f"/messages/start/{report.id}", data={"kind": "owner", "body": "Es mío, tiene mango de madera."})
-    conversation = Conversation.query.one()
+def test_a_new_report_waits_for_review_and_only_its_author_sees_it(carlos, maria, png_bytes):
+    from io import BytesIO
 
-    assert admin.get(f"/messages/{conversation.id}").status_code == 404
+    carlos.post("/add", data={
+        "name": "Mochila roja", "description": "Con llavero", "category": "bags", "location": "Cafetería",
+        "event_date": "2026-03-10", "status": "lost", "contact": "999 111 222",
+        "image": (BytesIO(png_bytes), "foto.png"),
+    }, content_type="multipart/form-data")
+    item = Item.query.one()
+
+    assert item.approval == "pending"
+    assert "Mochila roja" in _text(carlos.get("/")) and "En revisión" in _text(carlos.get("/"))
+    assert "Mochila roja" not in _text(maria.get("/"))
+    response = maria.get(f"/item/{item.id}")
+    assert response.status_code == 404 and "Publicación no disponible" in _text(response)
 
 
-def test_old_user_table_gets_the_admin_column(tmp_path):
+def test_admin_approves_and_the_report_becomes_public(admin, carlos, maria, make_item):
+    item = make_item(_carlos(), name="Paraguas azul", approval="pending")
+
+    page = _text(admin.get("/admin/moderacion"))
+    assert "Paraguas azul" in page
+    admin.post(f"/admin/item/{item.id}/aprobar")
+
+    assert db.session.get(Item, item.id).approval == "approved"
+    assert "Paraguas azul" in _text(maria.get("/"))
+
+
+def test_admin_disapproves_with_a_reason_the_author_can_read(admin, carlos, maria, make_item):
+    item = make_item(_carlos(), name="Celular", approval="pending")
+
+    admin.post(f"/admin/item/{item.id}/desaprobar", data={"reason": "Falta una descripción clara"})
+
+    item = db.session.get(Item, item.id)
+    assert item.approval == "rejected" and item.rejection_reason == "Falta una descripción clara"
+    assert "Celular" not in _text(maria.get("/"))
+    page = _text(carlos.get(f"/item/{item.id}"))
+    assert "Desaprobado por el administrador" in page and "Falta una descripción clara" in page
+
+
+def test_editing_a_report_sends_it_back_to_review(carlos, make_item):
+    item = make_item(_carlos(), name="Llaves", approval="rejected", rejection_reason="Foto borrosa")
+
+    carlos.post(f"/edit/{item.id}", data={
+        "name": "Llaves", "description": "Tres llaves", "category": "keys", "location": "Patio",
+        "event_date": "2026-03-10", "status": "lost", "contact": "999",
+    }, content_type="multipart/form-data")
+
+    item = db.session.get(Item, item.id)
+    assert item.approval == "pending" and item.rejection_reason is None
+
+
+def test_admin_reports_are_published_directly(admin, png_bytes):
+    _add(admin, png_bytes, "Calculadora")
+
+    assert Item.query.one().approval == "approved"
+
+
+def test_reports_that_existed_before_moderation_stay_published(tmp_path):
     engine = create_engine(f"sqlite:///{tmp_path / 'old.db'}")
     with engine.begin() as conn:
         conn.exec_driver_sql("CREATE TABLE user (id INTEGER PRIMARY KEY, username VARCHAR(64), password_hash VARCHAR(256))")
-        conn.exec_driver_sql("INSERT INTO user (username, password_hash) VALUES ('ana', 'x')")
-    ensure_user_columns(engine)
-    ensure_user_columns(engine)
-    columns = {c["name"] for c in inspect(engine).get_columns("user")}
+        conn.exec_driver_sql("CREATE TABLE item (id INTEGER PRIMARY KEY, name VARCHAR(120))")
+        conn.exec_driver_sql("INSERT INTO item (name) VALUES ('Viejo')")
+    ensure_moderation_columns(engine)
+    ensure_moderation_columns(engine)
     with engine.connect() as conn:
-        value = conn.exec_driver_sql("SELECT is_admin FROM user").scalar()
+        approval = conn.exec_driver_sql("SELECT approval FROM item").scalar()
+    columns = {c["name"] for c in inspect(engine).get_columns("user")}
     engine.dispose()
 
-    assert "is_admin" in columns and value == 0
+    assert approval == "approved" and "is_admin" in columns
 
 
-def test_create_admin_account_generates_a_password(app):
-    from admin import create_admin_account
+def test_nobody_can_message_about_an_unpublished_report(maria, make_item, carlos):
+    item = make_item(_carlos(), approval="pending")
 
-    user, password = create_admin_account()
+    response = maria.post(f"/messages/start/{item.id}", data={"kind": "owner", "body": "Es mío de verdad"})
 
-    assert (user.username, user.email, user.is_admin) == ("admin", "admin@gmail.com", True)
-    assert len(password) >= 10 and user.check_password(password)
-
-
-def test_create_admin_account_again_resets_the_password_without_duplicates(app):
-    from admin import create_admin_account
-
-    create_admin_account("primera123")
-    user, password = create_admin_account("segunda123")
-
-    assert User.query.count() == 1
-    assert password == "segunda123" and user.check_password("segunda123")
+    assert response.status_code == 404
+    assert Conversation.query.count() == 0
 
 
-def test_create_admin_account_reuses_an_account_with_that_email(app, make_user):
-    from admin import create_admin_account
-
-    make_user("profe", email="admin@gmail.com")
-    user, _ = create_admin_account("clave1234")
-
-    assert User.query.count() == 1
-    assert user.username == "profe" and user.is_admin
+# --- the administrator's sections -------------------------------------------------
 
 
-def test_admin_account_can_log_in(app, browser_for):
-    from admin import create_admin_account
+def test_regular_users_cannot_moderate(maria, make_item, carlos):
+    item = make_item(_carlos(), approval="pending")
 
-    create_admin_account("clave1234")
+    assert maria.get("/admin/moderacion").status_code == 302
+    maria.post(f"/admin/item/{item.id}/aprobar")
+    assert db.session.get(Item, item.id).approval == "pending"
+
+
+def test_admin_sidebar_has_the_panel_moderation_import_and_export(admin, make_item, carlos):
+    make_item(_carlos(), approval="pending")
+    nav = _nav(_text(admin.get("/")))
+
+    for label in ("Panel mensual", "Moderación", "Importar CSV", "Exportar CSV", "Administrador"):
+        assert label in nav, label
+    assert 'class="nav-badge"' in nav
+
+
+def test_admin_lands_on_the_panel_and_users_on_the_report_center(browser_for, app):
+    create_admin_account("Clave2026")
     browser = browser_for()
-    browser.post("/auth/login", data={"username": "admin", "password": "clave1234"})
+    response = browser.post("/auth/login", data={"username": "admin", "password": "Clave2026"})
+    assert response.headers["Location"].endswith("/dashboard/")
 
-    assert "Administrador" in _text(browser.get("/"))
+    browser_for("ana")
+    other = browser_for()
+    response = other.post("/auth/login", data={"username": "ana", "password": "password123"})
+    assert response.headers["Location"].split("?")[0].endswith("/")
+    assert not response.headers["Location"].endswith("/dashboard/")
+
+
+def test_admin_detail_page_has_approve_and_disapprove(admin, make_item, carlos):
+    item = make_item(_carlos(), approval="pending")
+    page = _text(admin.get(f"/item/{item.id}"))
+
+    assert f'action="/admin/item/{item.id}/aprobar"' in page
+    assert f'action="/admin/item/{item.id}/desaprobar"' in page
+
+
+# --- community flags ----------------------------------------------------------------
+
+
+def test_users_can_flag_a_report_once_and_the_admin_sees_it(admin, maria, make_item, carlos):
+    item = make_item(_carlos(), name="Billetera")
+
+    maria.post(f"/item/{item.id}/flag", data={"reason": "fake", "comment": "No existe ese lugar"})
+    maria.post(f"/item/{item.id}/flag", data={"reason": "duplicate"})
+
+    assert Flag.query.count() == 1
+    assert "Ya reportó esta publicación" in _text(maria.get(f"/item/{item.id}"))
+    page = _text(admin.get("/admin/moderacion?tab=reportadas"))
+    assert "Billetera" in page and "Es falso o engañoso" in page and "No existe ese lugar" in page
+
+
+def test_flag_requires_a_valid_reason_and_is_not_for_own_reports(carlos, maria, make_item):
+    item = make_item(_carlos())
+
+    assert maria.post(f"/item/{item.id}/flag", data={"reason": "nada"}).status_code == 400
+    carlos.post(f"/item/{item.id}/flag", data={"reason": "fake"})
+    assert Flag.query.count() == 0
+    assert "Reportar publicación" not in _text(carlos.get(f"/item/{item.id}"))
+
+
+def test_admin_keeps_a_flagged_report_or_disapproves_it(admin, maria, make_item, carlos):
+    kept = make_item(_carlos(), name="Uno")
+    removed = make_item(_carlos(), name="Dos")
+    for item in (kept, removed):
+        maria.post(f"/item/{item.id}/flag", data={"reason": "offensive"})
+
+    admin.post(f"/admin/item/{kept.id}/descartar-reportes")
+    admin.post(f"/admin/item/{removed.id}/desaprobar")
+
+    assert Flag.query.count() == 0
+    assert db.session.get(Item, kept.id).approval == "approved"
+    assert db.session.get(Item, removed.id).approval == "rejected"
+
+
+def test_deleting_a_report_deletes_its_flags(carlos, maria, make_item):
+    item = make_item(_carlos())
+    maria.post(f"/item/{item.id}/flag", data={"reason": "fake"})
+
+    carlos.post(f"/delete/{item.id}")
+
+    assert Flag.query.count() == 0
+
+
+# --- administrator account ------------------------------------------------------------
+
+
+def test_admin_account_is_created_from_the_environment_once(app):
+    assert ensure_admin_from_env({}) is None
+    assert ensure_admin_from_env({"ADMIN_PASSWORD": "123"}) is None
+
+    user = ensure_admin_from_env({"ADMIN_PASSWORD": "Inicial2026"})
+    assert (user.username, user.email, user.is_admin) == ("admin", "admin@gmail.com", True)
+    assert user.check_password("Inicial2026")
+
+    user.set_password("CambiadaPorElla")
+    db.session.commit()
+    ensure_admin_from_env({"ADMIN_PASSWORD": "Inicial2026"})  # next reload
+    assert User.query.count() == 1
+    assert User.query.one().check_password("CambiadaPorElla")
+
+
+def test_environment_admin_takes_over_an_account_registered_with_that_email(app, make_user):
+    make_user("admin", email="admin@gmail.com")
+
+    user = ensure_admin_from_env({"ADMIN_PASSWORD": "Inicial2026"})
+
+    assert User.query.count() == 1
+    assert user.is_admin and user.check_password("Inicial2026")

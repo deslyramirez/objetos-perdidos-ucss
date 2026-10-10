@@ -149,6 +149,8 @@ def start(item_id):
         return back
 
     existing = conversation_for(item.id, current_user.id)
+    if not item.is_approved:
+        abort(404)
     if existing is None and item.is_returned:
         flash(RETURNED, "warning")
         return back

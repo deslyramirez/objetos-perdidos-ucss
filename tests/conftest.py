@@ -116,6 +116,8 @@ def _create_item(owner, name="Mochila azul", **fields):
         "event_date": date(2026, 3, 10),
         "status": "lost",
         "contact": None,
+        # Test reports are published unless a test asks for another moderation state.
+        "approval": "approved",
     }
     values.update(fields)
     item = Item(name=name, user_id=owner.id, **values)

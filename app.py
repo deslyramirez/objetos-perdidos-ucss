@@ -52,12 +52,14 @@ def create_app(test_config=None):
     from dashboard import dashboard as dashboard_bp
     from profile import profile as profile_bp
     from messages import messages as messages_bp
+    from admin import admin as admin_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(dashboard_bp, url_prefix="/dashboard")
     app.register_blueprint(profile_bp, url_prefix="/profile")
     app.register_blueprint(messages_bp, url_prefix="/messages")
+    app.register_blueprint(admin_bp, url_prefix="/admin")
 
     # Error pages (status codes preserved)
     @app.errorhandler(404)
@@ -93,11 +95,12 @@ def create_app(test_config=None):
             import models  # noqa: F401  registers every table before create_all
 
             db.create_all()
-            from admin import ensure_user_columns
+            from admin import ensure_admin_from_env, ensure_moderation_columns
             from messages import ensure_message_columns
 
-            ensure_user_columns(db.engine)
+            ensure_moderation_columns(db.engine)
             ensure_message_columns(db.engine)
+            ensure_admin_from_env(os.environ)
             result = upgrade_legacy_schema(db.engine)
             app.logger.info(result.describe())
 

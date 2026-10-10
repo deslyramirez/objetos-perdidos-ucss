@@ -94,6 +94,7 @@ def _add_reports(owner, *specs):
             "category": None,
             "status": "lost",
             "event_date": date.fromisoformat(day) if day else None,
+            "approval": "approved",
         }
         values.update(spec)
         items.append(Item(user_id=owner.id, **values))
@@ -108,7 +109,12 @@ def _month_of(count, day_start=1, **fields):
 
 @pytest.fixture
 def maria(browser_for):
-    return browser_for("maria")
+    """The administrator: the panel, import and export belong to that role."""
+    browser = browser_for("maria")
+    user = User.query.filter_by(username="maria").one()
+    user.is_admin = True
+    db.session.commit()
+    return browser
 
 
 @pytest.fixture
@@ -457,11 +463,12 @@ def test_reports_of_every_user_are_counted(maria, maria_user, carlos_user):
     assert sorted(_recent_ids(html)) == sorted(item.id for item in Item.query.all())
 
 
-def test_a_user_without_reports_sees_the_reports_of_others(browser_for, maria_user, carlos_user):
-    _add_reports(carlos_user, dict(day="2026-10-04"))
-    newcomer = browser_for("lucia")
+def test_regular_users_cannot_open_the_panel(browser_for, maria_user, carlos_user):
+    """Only the administrator has the monthly panel; others land on the report center."""
+    response = browser_for("carlos").get("/dashboard/?mes=2026-10")
 
-    assert _kpi(_get(newcomer), "total") == "1"
+    assert response.status_code == 302
+    assert response.headers["Location"].split("?", 1)[0] == "/"
 
 
 def test_only_reports_inside_the_month_are_counted(maria, maria_user):

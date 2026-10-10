@@ -424,7 +424,7 @@ def test_add_creates_a_report_for_the_current_user(maria, maria_user):
     html = _text(response)
 
     assert response.request.path == "/"
-    assert "Reporte registrado correctamente." in html
+    assert "Quedó «En revisión» hasta que el administrador lo apruebe." in html
     item = Item.query.one()
     assert item.user_id == maria_user.id
     assert (item.name, item.description, item.category) == ("Mochila azul", "Con un llavero rojo", "bags")
@@ -548,7 +548,7 @@ def test_add_with_a_real_image_saves_a_unique_file_in_the_upload_folder(app, mar
         maria, "/add", _with_image(_item_data(), png_bytes, "Mi Foto.PNG"), follow_redirects=True
     )
 
-    assert "Reporte registrado correctamente." in _text(response)
+    assert "Quedó «En revisión» hasta que el administrador lo apruebe." in _text(response)
     item = Item.query.one()
     assert STORED_IMAGE_NAME.match(item.image_filename)
     assert item.image_filename.startswith(f"{item.user_id}_")
@@ -803,7 +803,7 @@ def test_edit_updates_fields_and_redirects_to_the_detail(maria, owned_item):
     html = _text(response)
 
     assert response.request.path == f"/item/{owned_item.id}"
-    assert "Reporte actualizado correctamente." in html
+    assert "Vuelve a estar «En revisión» hasta que el administrador lo apruebe." in html
     db.session.expire_all()
     item = db.session.get(Item, owned_item.id)
     assert (item.name, item.location, item.event_date) == ("Mochila negra", "Aula 12", date(2026, 2, 2))
@@ -904,7 +904,7 @@ def test_edit_replaces_the_image_and_removes_the_old_file_after_success(app, mar
         maria, f"/edit/{item.id}", _with_image(_item_data(), png_bytes, "nueva.png"), follow_redirects=True
     )
 
-    assert "Reporte actualizado correctamente." in _text(response)
+    assert "Vuelve a estar «En revisión» hasta que el administrador lo apruebe." in _text(response)
     db.session.expire_all()
     new_name = db.session.get(Item, item.id).image_filename
     assert new_name != "1_old.png" and STORED_IMAGE_NAME.match(new_name)
@@ -1198,8 +1198,6 @@ def test_oversized_upload_for_anonymous_users_goes_to_login(app, browser_for):
         "/add",
         "/item/{id}",
         "/edit/{id}",
-        "/import/csv",
-        "/dashboard/",
         "/profile/",
     ],
 )
@@ -1232,7 +1230,9 @@ def test_navbar_brand_and_links_on_item_pages(maria, owned_item):
     assert ">Buscar<" not in html.split("<main", 1)[0]
 
 
-def test_legacy_dashboard_template_still_renders(maria, owned_item):
+def test_legacy_dashboard_template_still_renders(maria, maria_user, owned_item):
+    maria_user.is_admin = True
+    db.session.commit()
     response = maria.get("/dashboard/")
 
     assert response.status_code == 200

@@ -1,0 +1,87 @@
+{#
+  Administrator review queue. Context from admin.moderation:
+    tab, tabs, tab_counts, items, flag_counts, flags_by_item, flag_reasons, approval_labels, reason_max.
+#}
+{% extends "base.html" %}
+{% from "_macros.html" import page_header, empty_state, status_badge, csrf_field, filter_chip, CATEGORY_ICONS %}
+{% block title %}Moderación{% endblock %}
+
+{% block content %}
+{{ page_header("Moderación", "Apruebe o desapruebe las publicaciones antes de que la comunidad las vea.", "bi-shield-check") }}
+
+<nav class="chip-row mb-6" aria-label="Estados de moderación">
+  {% for key, label in tabs.items() %}
+  {{ filter_chip(label, url_for('admin.moderation', tab=key), tab_counts[key], tab == key) }}
+  {% endfor %}
+</nav>
+
+{% if not items %}
+  {% set texts = {
+    'pendientes': ('No hay publicaciones pendientes.', 'Cuando un usuario registre un objeto, aparecerá aquí para que lo apruebe.'),
+    'reportadas': ('No hay publicaciones reportadas.', 'Si alguien usa «Reportar publicación», la verá aquí.'),
+    'desaprobadas': ('No hay publicaciones desaprobadas.', 'Las publicaciones que desapruebe se listarán aquí.')
+  } %}
+  {{ empty_state(texts[tab][0], texts[tab][1], icon='bi-check2-all') }}
+{% else %}
+<ul class="moderation-list">
+  {% for item in items %}
+  {% set cat = item.category if item.category in CATEGORY_ICONS else 'other' %}
+  {% set here = url_for('admin.moderation', tab=tab) %}
+  <li class="moderation-card">
+    <a class="inbox-row__thumb moderation-card__thumb" href="{{ url_for('main.view', item_id=item.id) }}" aria-hidden="true" tabindex="-1">
+      {% if item.image_filename %}
+      <img src="{{ url_for('static', filename='uploads/' ~ item.image_filename) }}" alt="" width="96" height="96">
+      {% else %}
+      <i class="bi {{ CATEGORY_ICONS[cat] }}"></i>
+      {% endif %}
+    </a>
+    <div class="moderation-card__body">
+      <div class="inbox-row__top">
+        <a class="moderation-card__title" href="{{ url_for('main.view', item_id=item.id) }}">{{ item.name }}</a>
+        {{ status_badge(item.status) }}
+        {% if flag_counts.get(item.id) %}<span class="kind-badge kind--flag"><i class="bi bi-flag-fill" aria-hidden="true"></i>&nbsp;{{ flag_counts[item.id] }}</span>{% endif %}
+      </div>
+      <p class="moderation-card__meta">
+        {{ item.category|categoria_label }} · {{ item.location or "Lugar no indicado" }} · {{ item.event_date|fecha }}
+        · Publicado por <strong>{{ item.user.username if item.user else "—" }}</strong>
+      </p>
+      {% if item.description %}<p class="moderation-card__desc">{{ item.description|truncate(160) }}</p>{% endif %}
+
+      {% if tab == 'reportadas' %}
+      <ul class="flag-list">
+        {% for f in flags_by_item.get(item.id, []) %}
+        <li><i class="bi bi-flag" aria-hidden="true"></i> <strong>{{ flag_reasons.get(f.reason, f.reason) }}</strong> — {{ f.user.username if f.user else "—" }}{% if f.comment %}: «{{ f.comment }}»{% endif %}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      {% if tab == 'desaprobadas' and item.rejection_reason %}
+      <p class="moderation-card__desc"><strong>Motivo:</strong> {{ item.rejection_reason }}</p>
+      {% endif %}
+
+      <div class="moderation-card__actions">
+        {% if tab != 'reportadas' %}
+        <form method="post" action="{{ url_for('admin.approve', item_id=item.id) }}">
+          {{ csrf_field() }}<input type="hidden" name="next" value="{{ here }}">
+          <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check2-circle" aria-hidden="true"></i> Aprobar</button>
+        </form>
+        {% else %}
+        <form method="post" action="{{ url_for('admin.dismiss_flags', item_id=item.id) }}">
+          {{ csrf_field() }}<input type="hidden" name="next" value="{{ here }}">
+          <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-check2" aria-hidden="true"></i> Mantener publicado</button>
+        </form>
+        {% endif %}
+        {% if tab != 'desaprobadas' %}
+        <form method="post" action="{{ url_for('admin.reject', item_id=item.id) }}" class="admin-tools__reject">
+          {{ csrf_field() }}<input type="hidden" name="next" value="{{ here }}">
+          <label class="sr-only" for="reason-{{ item.id }}">Motivo de la desaprobación</label>
+          <input id="reason-{{ item.id }}" class="form-input" name="reason" maxlength="{{ reason_max }}" placeholder="Motivo (opcional)">
+          <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-x-circle" aria-hidden="true"></i> Desaprobar</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

@@ -5,6 +5,8 @@ import re
 from types import SimpleNamespace
 
 import pytest
+
+from extensions import db
 from flask import g, render_template_string
 from flask_wtf import FlaskForm
 from wtforms import (
@@ -24,13 +26,21 @@ EMOJI_PATTERN = re.compile(
 )
 
 NAV_LABELS = (
-    "Panel",
-    "Importar",
-    "Exportar",
+    "Centro de reportes",
     "Nuevo reporte",
+    "Mensajes",
 )
+ADMIN_NAV_LABELS = ("Panel mensual", "Moderación", "Importar CSV", "Exportar CSV")
 
 REMOVED_NAV_LABELS = ("Buscar", "Agregar artículo", "Inventario")
+
+
+@pytest.fixture
+def admin_maria(logged_in):
+    from models import User
+
+    User.query.filter_by(username="maria").one().is_admin = True
+    db.session.commit()
 
 
 @pytest.fixture
@@ -100,7 +110,7 @@ def test_authenticated_navbar_shows_links_and_user(logged_in):
     for label in NAV_LABELS:
         assert label in html, label
     nav = html.split("<main", 1)[0]
-    for label in REMOVED_NAV_LABELS:
+    for label in REMOVED_NAV_LABELS + ADMIN_NAV_LABELS:
         assert label not in nav, label
     assert "Objetos perdidos" in nav
     assert "maria" in html
@@ -142,7 +152,7 @@ def test_navbar_logout_form_signs_the_user_out(logged_in):
     assert logged_in.get("/").status_code == 302
 
 
-def test_navbar_marks_active_link(logged_in):
+def test_navbar_marks_active_link(logged_in, admin_maria):
     html = _text(logged_in.get("/dashboard/"))
 
     active = re.findall(r'<a[^>]*aria-current="page"[^>]*>', html)
@@ -197,12 +207,12 @@ def test_navbar_script_is_null_safe_for_anonymous_users(client):
 AUTHENTICATED_PAGES = (
     "/",
     "/add",
-    "/dashboard/",
     "/profile/",
     "/profile/edit",
     "/profile/change-password",
-    "/import/csv",
+    "/messages/",
 )
+ADMIN_PAGES = ("/dashboard/", "/import/csv", "/admin/moderacion")
 
 
 @pytest.mark.parametrize("url", AUTHENTICATED_PAGES)
@@ -214,6 +224,25 @@ def test_every_authenticated_page_renders_inside_the_base_layout(logged_in, url)
     assert '<html lang="es"' in html
     assert "Cerrar sesión" in html
     assert "© " in html
+
+
+@pytest.mark.parametrize("url", ADMIN_PAGES)
+def test_admin_pages_render_inside_the_base_layout(logged_in, admin_maria, url):
+    response = logged_in.get(url)
+    html = _text(response)
+
+    assert response.status_code == 200
+    assert "Cerrar sesión" in html
+    for label in ADMIN_NAV_LABELS:
+        assert label in html.split("<main", 1)[0], label
+
+
+@pytest.mark.parametrize("url", ADMIN_PAGES)
+def test_admin_pages_send_regular_users_to_the_report_center(logged_in, url):
+    response = logged_in.get(url)
+
+    assert response.status_code == 302
+    assert response.headers["Location"].split("?", 1)[0] == "/"
 
 
 @pytest.mark.parametrize("url", ("/auth/login", "/auth/register"))
