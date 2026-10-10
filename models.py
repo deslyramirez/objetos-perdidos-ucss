@@ -121,5 +121,6 @@ class Message(db.Model):
     body = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     read_at = db.Column(db.DateTime, nullable=True)
+    edited_at = db.Column(db.DateTime, nullable=True)
 
     sender = db.relationship("User")

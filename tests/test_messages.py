@@ -265,3 +265,126 @@ def test_existing_database_gets_the_message_tables(monkeypatch, tmp_path):
             db.engine.dispose()
 
     assert {"conversation", "message", "item", "user"} <= tables
+
+
+# --- edit and delete -------------------------------------------------------------
+
+
+def test_sender_can_edit_their_message_and_it_is_marked_as_edited(maria, report):
+    _start(maria, report)
+    message = Message.query.one()
+
+    response = maria.post(f"/messages/message/{message.id}/edit", data={"body": "Es mío, la funda es transparente."})
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith(f"#m{message.id}")
+    message = Message.query.one()
+    assert message.body == "Es mío, la funda es transparente."
+    assert message.edited_at is not None
+    assert "editado" in _text(maria.get(f"/messages/{message.conversation_id}"))
+
+
+def test_invalid_edit_keeps_the_message(maria, report):
+    _start(maria, report)
+    message = Message.query.one()
+
+    maria.post(f"/messages/message/{message.id}/edit", data={"body": "no"})
+
+    assert Message.query.one().body == "Es mío, tiene de fondo una foto de mi perro."
+    assert Message.query.one().edited_at is None
+
+
+def test_nobody_else_can_edit_or_delete_a_message(carlos, browser_for, maria, report):
+    _start(maria, report)
+    message = Message.query.one()
+
+    for browser in (carlos, browser_for("intruso")):
+        assert browser.post(f"/messages/message/{message.id}/edit", data={"body": "Mensaje cambiado"}).status_code == 404
+        assert browser.post(f"/messages/message/{message.id}/delete").status_code == 404
+    assert Message.query.one().body == "Es mío, tiene de fondo una foto de mi perro."
+
+
+def test_only_own_messages_show_edit_and_delete(carlos, maria, report):
+    _start(maria, report)
+    conversation = Conversation.query.one()
+    message = Message.query.one()
+
+    assert f'action="/messages/message/{message.id}/edit"' in _text(maria.get(f"/messages/{conversation.id}"))
+    assert f'action="/messages/message/{message.id}/edit"' not in _text(carlos.get(f"/messages/{conversation.id}"))
+
+
+def test_sender_can_delete_their_message(maria, report):
+    _start(maria, report)
+    _start(maria, report, body="Segundo mensaje de prueba.")
+    first = Message.query.order_by(Message.id).first()
+
+    maria.post(f"/messages/message/{first.id}/delete")
+
+    assert [m.body for m in Message.query.all()] == ["Segundo mensaje de prueba."]
+    assert Conversation.query.count() == 1
+
+
+def test_either_participant_can_delete_the_conversation(carlos, maria, report):
+    _start(maria, report)
+    conversation = Conversation.query.one()
+
+    response = carlos.post(f"/messages/{conversation.id}/delete")
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/messages/")
+    assert Conversation.query.count() == 0 and Message.query.count() == 0
+    assert "¿Es tuyo o lo encontraste?" in _text(maria.get(f"/item/{report.id}"))
+
+
+def test_outsiders_cannot_delete_a_conversation(browser_for, maria, report):
+    _start(maria, report)
+    conversation = Conversation.query.one()
+
+    assert browser_for("intruso").post(f"/messages/{conversation.id}/delete").status_code == 404
+    assert Conversation.query.count() == 1
+
+
+def test_starter_can_change_the_reason_but_the_publisher_cannot(carlos, maria, report):
+    _start(maria, report)
+    conversation = Conversation.query.one()
+
+    maria.post(f"/messages/{conversation.id}/kind", data={"kind": "question"})
+    assert Conversation.query.one().kind == "question"
+
+    assert carlos.post(f"/messages/{conversation.id}/kind", data={"kind": "finder"}).status_code == 404
+    maria.post(f"/messages/{conversation.id}/kind", data={"kind": "hack"})
+    assert Conversation.query.one().kind == "question"
+    assert "Cambiar motivo" not in _text(carlos.get(f"/messages/{conversation.id}"))
+
+
+def test_conversation_is_framed(maria, report):
+    _start(maria, report)
+    conversation = Conversation.query.one()
+    html = _main(_text(maria.get(f"/messages/{conversation.id}")))
+
+    frame = html.split('class="thread-frame', 1)[1]
+    assert "Conversación" in frame and 'class="reply-box"' in frame
+
+
+def test_contact_box_comes_after_the_photo(maria, report):
+    html = _main(_text(maria.get(f"/item/{report.id}")))
+
+    assert 'md:col-start-1 md:row-start-2' in html
+    assert html.index("detail-photo") < html.index("¿Es tuyo o lo encontraste?")
+
+
+def test_old_message_table_gets_the_edited_column(tmp_path):
+    from messages import ensure_message_columns
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'old.db'}")
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            "CREATE TABLE message (id INTEGER PRIMARY KEY, conversation_id INTEGER, sender_id INTEGER, "
+            "body TEXT, created_at DATETIME, read_at DATETIME)"
+        )
+    ensure_message_columns(engine)
+    ensure_message_columns(engine)  # idempotent
+    columns = {c["name"] for c in inspect(engine).get_columns("message")}
+    engine.dispose()
+
+    assert "edited_at" in columns

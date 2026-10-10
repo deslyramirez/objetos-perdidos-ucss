@@ -93,6 +93,9 @@ def create_app(test_config=None):
             import models  # noqa: F401  registers every table before create_all
 
             db.create_all()
+            from messages import ensure_message_columns
+
+            ensure_message_columns(db.engine)
             result = upgrade_legacy_schema(db.engine)
             app.logger.info(result.describe())
 

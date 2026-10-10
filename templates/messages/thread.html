@@ -1,9 +1,10 @@
 {#
   One conversation about a report. Context from messages.thread:
-    conversation, item, other (the other participant), is_publisher, form (ReplyForm), kinds.
+    conversation, item, other (the other participant), is_publisher, form (ReplyForm),
+    kind_form (ConversationKindForm), kinds, message_max.
 #}
 {% extends "base.html" %}
-{% from "_macros.html" import field, status_badge, csrf_field %}
+{% from "_macros.html" import field, status_badge, csrf_field, delete_form %}
 {% block title %}Mensajes · {{ item.name }}{% endblock %}
 
 {% block content %}
@@ -42,37 +43,77 @@
         {% endif %}
       </p>
 
-      {% if is_publisher and not item.is_returned %}
-      <form method="post" action="{{ url_for('main.mark_returned', item_id=item.id) }}" class="mt-3">
-        {{ csrf_field() }}
-        <button type="submit" class="btn btn-secondary btn-sm">
-          <i class="bi bi-check2-circle" aria-hidden="true"></i> Ya lo entregué: marcar como entregado
-        </button>
-      </form>
-      {% endif %}
+      <div class="thread-actions">
+        {% if is_publisher and not item.is_returned %}
+        <form method="post" action="{{ url_for('main.mark_returned', item_id=item.id) }}">
+          {{ csrf_field() }}
+          <button type="submit" class="btn btn-secondary btn-sm">
+            <i class="bi bi-check2-circle" aria-hidden="true"></i> Ya lo entregué: marcar como entregado
+          </button>
+        </form>
+        {% endif %}
+        {% if not is_publisher %}
+        <details class="inline-edit">
+          <summary class="btn btn-ghost btn-sm"><i class="bi bi-pencil" aria-hidden="true"></i> Cambiar motivo</summary>
+          <form method="post" action="{{ url_for('messages.change_kind', conversation_id=conversation.id) }}" class="inline-edit__form">
+            {{ csrf_field() }}
+            <label class="sr-only" for="kind-select">Motivo</label>
+            {{ kind_form.kind(class_='form-input', id='kind-select') }}
+            <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+          </form>
+        </details>
+        {% endif %}
+        {{ delete_form(url_for('messages.delete_conversation', conversation_id=conversation.id), 'Eliminar conversación', '¿Eliminar esta conversación? Se borrará para ambas personas y no se puede deshacer.') }}
+      </div>
     </div>
   </div>
 
-  <section class="thread mt-4" aria-label="Mensajes">
-    {% for m in conversation.messages %}
-    {% set mine = m.sender_id == current_user.id %}
-    <article class="msg{{ ' msg--mine' if mine }}"{% if loop.last %} id="ultimo"{% endif %}>
-      <p class="msg__meta">{{ 'Usted' if mine else (m.sender.username if m.sender else '—') }} · {{ m.created_at|fecha_hora }}</p>
-      <p class="msg__body">{{ m.body }}</p>
-    </article>
-    {% endfor %}
+  <section class="thread-frame mt-4" aria-labelledby="thread-title">
+    <h2 id="thread-title" class="thread-frame__title">
+      <i class="bi bi-chat-square-dots" aria-hidden="true"></i> Conversación
+      <span class="chip-count">{{ conversation.messages|length }}</span>
+    </h2>
+    <div class="thread">
+      {% for m in conversation.messages %}
+      {% set mine = m.sender_id == current_user.id %}
+      <article class="msg{{ ' msg--mine' if mine }}" id="m{{ m.id }}"{% if loop.last %} data-last{% endif %}>
+        <p class="msg__meta">{{ 'Usted' if mine else (m.sender.username if m.sender else '—') }} · {{ m.created_at|fecha_hora }}{% if m.edited_at %} · editado{% endif %}</p>
+        <p class="msg__body">{{ m.body }}</p>
+        {% if mine %}
+        <div class="msg__tools">
+          <details class="inline-edit">
+            <summary><i class="bi bi-pencil" aria-hidden="true"></i> Editar</summary>
+            <form method="post" action="{{ url_for('messages.edit_message', message_id=m.id) }}" class="inline-edit__form inline-edit__form--stack">
+              {{ csrf_field() }}
+              <label class="sr-only" for="edit-{{ m.id }}">Editar mensaje</label>
+              <textarea id="edit-{{ m.id }}" name="body" class="form-input" rows="3" maxlength="{{ message_max }}" required>{{ m.body }}</textarea>
+              <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+            </form>
+          </details>
+          <form method="post" action="{{ url_for('messages.delete_message', message_id=m.id) }}" onsubmit='return confirm({{ "¿Eliminar este mensaje?"|tojson }});'>
+            {{ csrf_field() }}
+            <button type="submit" class="msg__delete"><i class="bi bi-trash3" aria-hidden="true"></i> Eliminar</button>
+          </form>
+        </div>
+        {% endif %}
+      </article>
+      {% else %}
+      <p class="text-sm text-slate-500">No quedan mensajes en esta conversación.</p>
+      {% endfor %}
+      <span id="ultimo"></span>
+    </div>
+    <form method="post" class="reply-box" novalidate>
+      <div>
+        {{ form.hidden_tag() }}
+        {{ field(form.body, rows=3, maxlength=1000, placeholder='Escriba su respuesta...') }}
+        <div class="flex justify-end">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-send" aria-hidden="true"></i> Enviar
+          </button>
+        </div>
+      </div>
+    </form>
   </section>
 
-  <form method="post" class="card reply-box mt-4" novalidate>
-    <div class="card-body">
-      {{ form.hidden_tag() }}
-      {{ field(form.body, rows=3, maxlength=1000, placeholder='Escriba su respuesta...') }}
-      <div class="flex justify-end">
-        <button type="submit" class="btn btn-primary">
-          <i class="bi bi-send" aria-hidden="true"></i> Enviar
-        </button>
-      </div>
-    </div>
-  </form>
 </div>
 {% endblock %}

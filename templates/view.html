@@ -11,9 +11,9 @@
 
   <div class="card detail-card status--{{ item.status }} cat--{{ cat }} mt-4">
     <div class="card-body">
-      <div class="grid grid-cols-1 gap-8 md:grid-cols-2">
+      <div class="grid grid-cols-1 gap-8 md:grid-cols-2 md:grid-rows-[auto_1fr]">
 
-        <div class="detail-photo">
+        <div class="detail-photo md:col-start-1 md:row-start-1">
           {% if item.image_filename %}
           <img src="{{ url_for('static', filename='uploads/' ~ item.image_filename) }}"
                alt="{{ item.name }}" width="640" height="480">
@@ -25,7 +25,7 @@
           {% endif %}
         </div>
 
-        <div class="min-w-0">
+        <div class="min-w-0 md:col-start-2 md:row-start-1 md:row-span-2">
           <p class="detail-eyebrow"><i class="bi {{ CATEGORY_ICONS[cat] }}" aria-hidden="true"></i> {{ item.category|categoria_label if item.category else "Sin categoría" }}</p>
           <h1 class="detail-title">{{ item.name }}</h1>
 
@@ -98,7 +98,17 @@
             {{ delete_form(url_for('main.delete', item_id=item.id), 'Eliminar', '¿Desea eliminar el reporte «' ~ item.name ~ '»? Esta acción no se puede deshacer.', 'md') }}
           </div>
 
-          <section class="contact-box mt-8" aria-labelledby="received-title">
+          {% else %}
+          <p class="mt-8 text-sm text-slate-500">
+            <i class="bi bi-lock" aria-hidden="true"></i> Solo quien creó el reporte puede modificarlo.
+          </p>
+
+          {% endif %}
+        </div>
+
+        <div class="min-w-0 md:col-start-1 md:row-start-2">
+          {% if is_owner %}
+          <section class="contact-box" aria-labelledby="received-title">
             <h2 id="received-title" class="contact-box__title">
               <i class="bi bi-chat-dots" aria-hidden="true"></i> Mensajes recibidos
               <span class="chip-count">{{ received|length }}</span>
@@ -121,13 +131,9 @@
             <p class="text-sm text-slate-500">Cuando alguien diga «Es mío» o «Lo encontré», aparecerá aquí.</p>
             {% endif %}
           </section>
-          {% else %}
-          <p class="mt-8 text-sm text-slate-500">
-            <i class="bi bi-lock" aria-hidden="true"></i> Solo quien creó el reporte puede modificarlo.
-          </p>
-
+          {% elif item.user_id is not none %}
           {% if my_conversation %}
-          <section class="contact-box mt-4" aria-labelledby="contact-title">
+          <section class="contact-box" aria-labelledby="contact-title">
             <h2 id="contact-title" class="contact-box__title"><i class="bi bi-chat-dots" aria-hidden="true"></i> Ya escribiste sobre este objeto</h2>
             <p class="text-sm text-slate-600">Continúa la conversación con {{ item.user.username }}.</p>
             <a class="btn btn-primary mt-3" href="{{ url_for('messages.thread', conversation_id=my_conversation.id) }}">
@@ -135,7 +141,7 @@
             </a>
           </section>
           {% elif contact_form and not item.is_returned %}
-          <section class="contact-box mt-4" aria-labelledby="contact-title">
+          <section class="contact-box" aria-labelledby="contact-title">
             <h2 id="contact-title" class="contact-box__title"><i class="bi bi-chat-dots" aria-hidden="true"></i> ¿Es tuyo o lo encontraste?</h2>
             <p class="text-sm text-slate-600 mb-3">Escríbele a {{ item.user.username }} desde aquí, aunque el contacto publicado esté mal. Si es tuyo, menciona un detalle que solo el dueño conozca.</p>
             <form method="post" action="{{ url_for('messages.start', item_id=item.id) }}" novalidate>

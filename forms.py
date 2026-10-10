@@ -366,3 +366,22 @@ class ContactForm(FlaskForm):
 class ReplyForm(FlaskForm):
     body = _message_field("Respuesta")
     submit = SubmitField("Enviar")
+
+
+class EditMessageForm(FlaskForm):
+    body = _message_field("Editar mensaje")
+    submit = SubmitField("Guardar")
+
+
+class ConversationKindForm(FlaskForm):
+    kind = SelectField(
+        "Motivo",
+        choices=list(CONVERSATION_KINDS.items()),
+        validate_choice=False,
+        validators=[DataRequired(message="Seleccione un motivo.")],
+    )
+    submit = SubmitField("Cambiar")
+
+    def validate_kind(self, field):
+        if field.data not in CONVERSATION_KINDS:
+            raise ValidationError("Seleccione un motivo válido.")

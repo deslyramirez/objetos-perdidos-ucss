@@ -14,7 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from domain import CONVERSATION_KINDS
 from extensions import db
-from forms import ContactForm, ReplyForm
+from forms import MESSAGE_MAX, ContactForm, ConversationKindForm, EditMessageForm, ReplyForm
 from models import Conversation, Item, Message
 
 messages = Blueprint("messages", __name__)
@@ -23,6 +23,15 @@ OWN_REPORT = "No puede enviarse mensajes sobre su propio reporte."
 NO_PUBLISHER = "Este reporte no tiene una persona responsable a quien escribir."
 RETURNED = "El objeto ya fue entregado; no se aceptan nuevas solicitudes."
 SEND_FAILED = "No se pudo enviar el mensaje. Intente nuevamente."
+SAVE_FAILED = "No se pudieron guardar los cambios. Intente nuevamente."
+
+
+def ensure_message_columns(engine):
+    """Add columns introduced after the first release of the message table (SQLite, idempotent)."""
+    with engine.begin() as conn:
+        columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(message)")}
+        if columns and "edited_at" not in columns:
+            conn.exec_driver_sql("ALTER TABLE message ADD COLUMN edited_at DATETIME")
 
 
 # -----------------------------
@@ -84,15 +93,23 @@ def inject_unread_messages():
     return {"unread_messages": 0}
 
 
-def _commit():
+def _commit(error=SEND_FAILED):
     try:
         db.session.commit()
         return True
     except SQLAlchemyError:
         db.session.rollback()
         current_app.logger.exception("Could not save a message")
-        flash(SEND_FAILED, "danger")
+        flash(error, "danger")
         return False
+
+
+def _own_message(message_id):
+    """A message the current user wrote; anything else is a 404."""
+    message = db.get_or_404(Message, message_id)
+    if message.sender_id != current_user.id or not message.conversation.has_participant(current_user.id):
+        abort(404)
+    return message
 
 
 # -----------------------------
@@ -199,5 +216,67 @@ def thread(conversation_id):
         other=conversation.other_user(current_user.id),
         is_publisher=conversation.item.user_id == current_user.id,
         form=form,
+        kind_form=ConversationKindForm(kind=conversation.kind),
         kinds=CONVERSATION_KINDS,
+        message_max=MESSAGE_MAX,
     ), (400 if form.errors else 200)
+
+
+# -----------------------------
+# EDIT AND DELETE
+# -----------------------------
+@messages.route("/<int:conversation_id>/kind", methods=["POST"])
+@login_required
+def change_kind(conversation_id):
+    """Only whoever started the conversation chooses its reason."""
+    conversation = _participant_conversation(conversation_id)
+    if conversation.starter_id != current_user.id:
+        abort(404)
+    form = ConversationKindForm()
+    if form.validate_on_submit():
+        conversation.kind = form.kind.data
+        if _commit(SAVE_FAILED):
+            flash("Motivo actualizado.", "success")
+    else:
+        flash("Seleccione un motivo válido.", "danger")
+    return redirect(url_for("messages.thread", conversation_id=conversation.id))
+
+
+@messages.route("/<int:conversation_id>/delete", methods=["POST"])
+@login_required
+def delete_conversation(conversation_id):
+    conversation = _participant_conversation(conversation_id)
+    db.session.delete(conversation)
+    if _commit(SAVE_FAILED):
+        flash("Conversación eliminada para ambas personas.", "info")
+        return redirect(url_for("messages.inbox"))
+    return redirect(url_for("messages.thread", conversation_id=conversation_id))
+
+
+@messages.route("/message/<int:message_id>/edit", methods=["POST"])
+@login_required
+def edit_message(message_id):
+    message = _own_message(message_id)
+    conversation_id = message.conversation_id
+    form = EditMessageForm()
+    if form.validate_on_submit():
+        if form.body.data != message.body:
+            message.body = form.body.data
+            message.edited_at = datetime.utcnow()
+            if _commit(SAVE_FAILED):
+                flash("Mensaje editado.", "success")
+    else:
+        for error in form.body.errors:
+            flash(error, "danger")
+    return redirect(url_for("messages.thread", conversation_id=conversation_id, _anchor=f"m{message.id}"))
+
+
+@messages.route("/message/<int:message_id>/delete", methods=["POST"])
+@login_required
+def delete_message(message_id):
+    message = _own_message(message_id)
+    conversation_id = message.conversation_id
+    db.session.delete(message)
+    if _commit(SAVE_FAILED):
+        flash("Mensaje eliminado.", "info")
+    return redirect(url_for("messages.thread", conversation_id=conversation_id))
