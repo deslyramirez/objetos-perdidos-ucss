@@ -102,6 +102,12 @@
           <p class="mt-8 text-sm text-slate-500">
             <i class="bi bi-lock" aria-hidden="true"></i> Solo quien creó el reporte puede modificarlo.
           </p>
+          {% if current_user.is_admin %}
+          <div class="admin-tools mt-3">
+            <span class="admin-badge"><i class="bi bi-shield-check" aria-hidden="true"></i> Administrador</span>
+            {{ delete_form(url_for('main.delete', item_id=item.id), 'Eliminar reporte', '¿Eliminar el reporte «' ~ item.name ~ '» de ' ~ (item.user.username if item.user else 'otro usuario') ~ '? Se borrarán también su foto y sus mensajes. No se puede deshacer.') }}
+          </div>
+          {% endif %}
 
           {% endif %}
         </div>

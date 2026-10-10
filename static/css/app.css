@@ -2508,3 +2508,9 @@ body.app-shell .app-sidebar .app-nav-link.is-active::before { left: -.5rem; }
 .msg__tools details[open] { flex-basis: 100%; }
 .msg--mine .msg__tools { color: #e3fbfd; }
 .msg--mine .inline-edit__form .btn-primary { background: #fff; color: #0d7180; }
+
+/* Administrator role. */
+.admin-badge { display: inline-flex; align-items: center; gap: .3rem; margin-top: .35rem; padding: .15rem .55rem; border-radius: 999px; background: #fff4e5; color: #9a5b00; font-size: .72rem; font-weight: 800; }
+.app-user-menu__head .admin-badge { display: flex; width: fit-content; }
+.admin-tools { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; padding: .7rem .8rem; border: 1px dashed #f0c27a; border-radius: .8rem; background: #fffaf2; }
+.admin-tools .admin-badge { margin-top: 0; }

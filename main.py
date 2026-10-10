@@ -428,9 +428,14 @@ def edit(item_id):
 @bp.route("/delete/<int:item_id>", methods=["POST"])
 @login_required
 def delete(item_id):
-    item, denied = _owned_item(item_id, "main.index")
-    if denied is not None:
-        return denied
+    item = db.get_or_404(Item, item_id)
+    as_admin = current_user.is_admin and item.user_id != current_user.id
+    if not as_admin:
+        item, denied = _owned_item(item_id, "main.index")
+        if denied is not None:
+            return denied
+    if as_admin:
+        current_app.logger.info("Admin %s deleted report %s", current_user.username, item_id)
 
     image_filename = item.image_filename
     db.session.delete(item)

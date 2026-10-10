@@ -19,6 +19,9 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True)
     bio = db.Column(db.String(300))
 
+    # Administrators may delete any report (fake, duplicated or offensive). Set with hacer_admin.py.
+    is_admin = db.Column(db.Boolean, nullable=False, default=False, server_default="0")
+
     # avatar filename (default avatar included in static folder)
     avatar = db.Column(db.String(120), default="default.png")
 
