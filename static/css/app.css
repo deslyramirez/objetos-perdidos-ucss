@@ -2428,3 +2428,60 @@ body.app-shell .app-sidebar .app-nav-link.is-active::before { left: -.5rem; }
 .auth-split--login .auth-card .password-toggle:hover,
 .auth-split--register .auth-card .password-toggle,
 .auth-split--register .auth-card .password-toggle:hover { color: #000 !important; }
+
+/* ---------- Messages: contact box, inbox and conversation ---------- */
+.reporter-email { display: inline-flex; align-items: center; gap: .3rem; margin-left: .35rem; color: #0d7180; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
+.reporter-email:hover { color: #075f72; }
+
+.nav-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 1.25rem; height: 1.25rem; margin-left: auto; padding: 0 .4rem; border-radius: 999px; background: #e0673f; color: #fff; font-size: .7rem; font-weight: 800; line-height: 1; }
+
+.kind-badge { display: inline-flex; align-items: center; padding: .15rem .55rem; border-radius: 999px; font-size: .72rem; font-weight: 700; white-space: nowrap; }
+.kind--owner { background: #ede7f8; color: #5b3a96; }
+.kind--finder { background: #e3f7fa; color: #075f72; }
+.kind--question { background: var(--color-slate-100); color: var(--color-slate-700); }
+
+.contact-box { padding: 1.1rem 1.2rem; border: 1px solid #dce9ee; border-radius: 1rem; background: #f7fbfc; }
+.contact-box__title { display: flex; align-items: center; gap: .5rem; margin-bottom: .5rem; color: #123e55; font-size: 1rem; font-weight: 800; }
+.contact-box textarea.form-input { resize: vertical; }
+
+.received-list { display: grid; gap: .4rem; }
+.received-row { display: flex; align-items: center; gap: .6rem; padding: .55rem .7rem; border: 1px solid #e3edf1; border-radius: .7rem; background: #fff; color: #15364a; }
+.received-row:hover { border-color: #a9dfe6; }
+.received-row.is-unread { border-color: #e0673f; }
+.received-row__who { font-weight: 700; }
+.received-row__when { margin-left: auto; color: var(--color-slate-500); font-size: .78rem; }
+
+.inbox-list { display: grid; gap: .6rem; }
+.inbox-row { display: flex; align-items: center; gap: .9rem; padding: .85rem 1rem; border: 1px solid #dce9ee; border-radius: 1rem; background: #fff; color: #15364a; transition: border-color 200ms ease, transform 200ms ease; }
+.inbox-row:hover { border-color: #7a4fb5; transform: translateY(-1px); }
+.inbox-row.is-unread { border-left: 4px solid #e0673f; background: #fffaf7; }
+.inbox-row.is-unread .inbox-row__item { color: #0f344a; }
+.inbox-row__thumb { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 3.5rem; height: 3.5rem; overflow: hidden; border-radius: .75rem; background: #e3f7fa; color: #075f72; font-size: 1.4rem; }
+.inbox-row__thumb img { width: 100%; height: 100%; object-fit: cover; }
+.inbox-row__body { display: grid; gap: .2rem; min-width: 0; flex: 1; }
+.inbox-row__top { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+.inbox-row__item { font-size: .98rem; }
+.inbox-row__who { color: var(--color-slate-600); font-size: .82rem; }
+.inbox-row__preview { overflow: hidden; color: var(--color-slate-500); font-size: .85rem; text-overflow: ellipsis; white-space: nowrap; }
+.inbox-row__side { display: grid; justify-items: end; gap: .35rem; flex: none; }
+.inbox-row__when { color: var(--color-slate-500); font-size: .75rem; }
+
+.thread-head__row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; }
+.thread-head__item { display: flex; align-items: center; gap: .75rem; color: #123e55; }
+.thread-head__item strong { display: block; font-size: 1.05rem; }
+.thread-head__item small { color: var(--color-slate-500); }
+.thread-head__who { margin-top: .8rem; color: var(--color-slate-600); font-size: .9rem; }
+
+.thread { display: flex; flex-direction: column; gap: .6rem; }
+.msg { max-width: 80%; align-self: flex-start; padding: .65rem .9rem; border: 1px solid #e3edf1; border-radius: 1rem 1rem 1rem .25rem; background: #fff; scroll-margin-top: 6rem; }
+.msg--mine { align-self: flex-end; border-color: transparent; border-radius: 1rem 1rem .25rem 1rem; background: #0d7180; color: #fff; }
+.msg__meta { margin-bottom: .2rem; color: var(--color-slate-500); font-size: .72rem; font-weight: 600; }
+.msg--mine .msg__meta { color: #d5f3f7; }
+.msg__body { white-space: pre-line; overflow-wrap: anywhere; }
+.reply-box textarea.form-input { resize: vertical; }
+
+@media (max-width: 640px) {
+  .msg { max-width: 92%; }
+  .inbox-row { align-items: flex-start; }
+  .inbox-row__thumb { width: 2.75rem; height: 2.75rem; }
+}

@@ -28,9 +28,11 @@ from werkzeug.utils import secure_filename
 
 from domain import (
     CATEGORY_LABELS,
+    CONVERSATION_KINDS,
     DEFAULT_STATUS,
     LEGACY_CATEGORY_MAP,
     STATUS_LABELS,
+    default_conversation_kind,
     month_bounds,
     parse_month,
 )
@@ -42,6 +44,7 @@ from forms import (
     ITEM_LOCATION_MAX,
     ITEM_NAME_MAX,
     AddItemForm,
+    ContactForm,
     EditItemForm,
 )
 from models import Item
@@ -296,7 +299,26 @@ def search():
 @login_required
 def view(item_id):
     item = db.get_or_404(Item, item_id)
-    return render_template("view.html", item=item, is_owner=item.user_id == current_user.id)
+    return render_item_view(item)
+
+
+def render_item_view(item, contact_form=None):
+    """Render the report page; `contact_form` carries errors back from messages.start."""
+    from messages import conversation_for, received_conversations, unread_by_conversation
+
+    is_owner = item.user_id is not None and item.user_id == current_user.id
+    context = {"item": item, "is_owner": is_owner}
+    if is_owner:
+        received = received_conversations(item)
+        context["received"] = received
+        context["received_unread"] = unread_by_conversation(current_user.id, [c.id for c in received])
+    elif item.user_id is not None:
+        context["my_conversation"] = conversation_for(item.id, current_user.id)
+        if contact_form is None:
+            contact_form = ContactForm(kind=default_conversation_kind(item.status))
+        context["contact_form"] = contact_form
+    context["kinds"] = CONVERSATION_KINDS
+    return render_template("view.html", **context)
 
 
 # -----------------------------

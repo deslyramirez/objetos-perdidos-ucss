@@ -81,3 +81,21 @@ def parse_month(value, default):
     if not 1 <= year <= 9998 or not 1 <= month <= 12:
         return default
     return year, month
+
+
+# Why someone contacts the person who published a report.
+CONVERSATION_KINDS = {
+    "owner": "Es mío",
+    "finder": "Lo encontré",
+    "question": "Consulta",
+}
+CONVERSATION_KIND_ICONS = {
+    "owner": "bi-hand-index-thumb",
+    "finder": "bi-search-heart",
+    "question": "bi-chat-left-text",
+}
+
+
+def default_conversation_kind(status):
+    """A lost object is answered with "Lo encontré", a found one with "Es mío"."""
+    return {"lost": "finder", "found": "owner"}.get(status, "question")

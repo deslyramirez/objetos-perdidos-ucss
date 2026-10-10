@@ -1,0 +1,78 @@
+{#
+  One conversation about a report. Context from messages.thread:
+    conversation, item, other (the other participant), is_publisher, form (ReplyForm), kinds.
+#}
+{% extends "base.html" %}
+{% from "_macros.html" import field, status_badge, csrf_field %}
+{% block title %}Mensajes · {{ item.name }}{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-3xl">
+  <a href="{{ url_for('messages.inbox') }}" class="back-link">
+    <i class="bi bi-arrow-left" aria-hidden="true"></i> Volver a mensajes
+  </a>
+
+  <div class="card thread-head mt-4">
+    <div class="card-body">
+      <div class="thread-head__row">
+        <a class="thread-head__item" href="{{ url_for('main.view', item_id=item.id) }}">
+          <span class="inbox-row__thumb" aria-hidden="true">
+            {% if item.image_filename %}
+            <img src="{{ url_for('static', filename='uploads/' ~ item.image_filename) }}" alt="" width="56" height="56">
+            {% else %}
+            <i class="bi bi-box-seam"></i>
+            {% endif %}
+          </span>
+          <span>
+            <strong>{{ item.name }}</strong>
+            <small>{{ item.location or "Lugar no indicado" }} · {{ item.event_date|fecha }}</small>
+          </span>
+        </a>
+        <span class="flex flex-wrap items-center gap-2">
+          <span class="kind-badge kind--{{ conversation.kind }}">{{ kinds.get(conversation.kind, conversation.kind) }}</span>
+          {{ status_badge(item.status) }}
+        </span>
+      </div>
+
+      <p class="thread-head__who">
+        <i class="bi bi-person-circle" aria-hidden="true"></i>
+        {{ 'Le escribió' if is_publisher else 'Conversación con' }} <strong>{{ other.username if other else "—" }}</strong>
+        {% if other and other.email %}
+        · <a class="reporter-email" href="mailto:{{ other.email }}"><i class="bi bi-envelope" aria-hidden="true"></i>{{ other.email }}</a>
+        {% endif %}
+      </p>
+
+      {% if is_publisher and not item.is_returned %}
+      <form method="post" action="{{ url_for('main.mark_returned', item_id=item.id) }}" class="mt-3">
+        {{ csrf_field() }}
+        <button type="submit" class="btn btn-secondary btn-sm">
+          <i class="bi bi-check2-circle" aria-hidden="true"></i> Ya lo entregué: marcar como entregado
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <section class="thread mt-4" aria-label="Mensajes">
+    {% for m in conversation.messages %}
+    {% set mine = m.sender_id == current_user.id %}
+    <article class="msg{{ ' msg--mine' if mine }}"{% if loop.last %} id="ultimo"{% endif %}>
+      <p class="msg__meta">{{ 'Usted' if mine else (m.sender.username if m.sender else '—') }} · {{ m.created_at|fecha_hora }}</p>
+      <p class="msg__body">{{ m.body }}</p>
+    </article>
+    {% endfor %}
+  </section>
+
+  <form method="post" class="card reply-box mt-4" novalidate>
+    <div class="card-body">
+      {{ form.hidden_tag() }}
+      {{ field(form.body, rows=3, maxlength=1000, placeholder='Escriba su respuesta...') }}
+      <div class="flex justify-end">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-send" aria-hidden="true"></i> Enviar
+        </button>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

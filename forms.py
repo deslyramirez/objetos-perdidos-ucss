@@ -19,7 +19,7 @@ from wtforms.validators import (
     Optional,
     ValidationError,
 )
-from domain import CATEGORY_LABELS, DEFAULT_STATUS, STATUS_LABELS
+from domain import CATEGORY_LABELS, CONVERSATION_KINDS, DEFAULT_STATUS, STATUS_LABELS
 from models import User
 from utils import today_local
 
@@ -322,3 +322,47 @@ class EditItemForm(AddItemForm):
         ],
     )
     submit = SubmitField("Guardar cambios")
+
+
+# -----------------------------
+# MESSAGES ABOUT A REPORT
+# -----------------------------
+MESSAGE_MIN = 5
+MESSAGE_MAX = 1000
+
+
+def _message_field(label):
+    return TextAreaField(
+        label,
+        filters=[_strip],
+        validators=[
+            DataRequired(message="Escriba un mensaje."),
+            Length(
+                min=MESSAGE_MIN,
+                max=MESSAGE_MAX,
+                message=f"El mensaje debe tener entre {MESSAGE_MIN} y {MESSAGE_MAX} caracteres.",
+            ),
+        ],
+    )
+
+
+class ContactForm(FlaskForm):
+    """First message to the person who published a report ("Es mío", "Lo encontré", ...)."""
+
+    kind = SelectField(
+        "Motivo",
+        choices=list(CONVERSATION_KINDS.items()),
+        validate_choice=False,
+        validators=[DataRequired(message="Seleccione un motivo.")],
+    )
+    body = _message_field("Mensaje")
+    submit = SubmitField("Enviar mensaje")
+
+    def validate_kind(self, field):
+        if field.data not in CONVERSATION_KINDS:
+            raise ValidationError("Seleccione un motivo válido.")
+
+
+class ReplyForm(FlaskForm):
+    body = _message_field("Respuesta")
+    submit = SubmitField("Enviar")

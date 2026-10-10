@@ -32,19 +32,22 @@
   'dashboard': ('Panel mensual', 'bi-bar-chart-line', '#2a6f9a'),
   'import': ('Importar CSV', 'bi-upload', '#c27a16'),
   'export': ('Exportar CSV', 'bi-download', '#2f9e6e'),
+  'messages': ('Mensajes', 'bi-chat-dots', '#7a4fb5'),
   'account': ('Mi cuenta', 'bi-person-circle', '#355a6e')
 } -%}
 {%- if endpoint.startswith('dashboard.') %}{% set section = 'dashboard' %}
 {%- elif endpoint == 'main.add' %}{% set section = 'add' %}
 {%- elif endpoint == 'main.import_csv' %}{% set section = 'import' %}
 {%- elif endpoint.startswith('profile.') %}{% set section = 'account' %}
+{%- elif endpoint.startswith('messages.') %}{% set section = 'messages' %}
 {%- else %}{% set section = 'reports' %}{% endif -%}
-{%- macro nav_link(href, key, active=False) -%}
+{%- macro nav_link(href, key, active=False, badge=0) -%}
 {%- set label, icon, color = sections[key] -%}
 <a href="{{ href }}" style="--c: {{ color }}"
    class="app-nav-link {{ 'is-active' if active else '' }}"
    {%- if active %} aria-current="page"{% endif %}>
   <i class="bi {{ icon }}" aria-hidden="true"></i><span>{{ label }}</span>
+  {%- if badge %}<span class="nav-badge" aria-label="{{ badge }} sin leer">{{ badge }}</span>{% endif %}
 </a>
 {%- endmacro -%}
 <!DOCTYPE html>
@@ -87,7 +90,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 
     <!-- Design system components -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css', v=30) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css', v=31) }}">
     {% block head %}{% endblock %}
 </head>
 
@@ -116,6 +119,7 @@
                 <p class="app-sidebar__group">Reportes</p>
                 {{ nav_link(url_for('main.index'), 'reports', section == 'reports') }}
                 {{ nav_link(url_for('main.add'), 'add', section == 'add') }}
+                {{ nav_link(url_for('messages.inbox'), 'messages', section == 'messages', unread_messages) }}
             </div>
             <div class="app-sidebar__section">
                 <p class="app-sidebar__group">Datos</p>

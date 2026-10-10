@@ -51,11 +51,13 @@ def create_app(test_config=None):
     from auth import bp as auth_bp
     from dashboard import dashboard as dashboard_bp
     from profile import profile as profile_bp
+    from messages import messages as messages_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(dashboard_bp, url_prefix="/dashboard")
     app.register_blueprint(profile_bp, url_prefix="/profile")
+    app.register_blueprint(messages_bp, url_prefix="/messages")
 
     # Error pages (status codes preserved)
     @app.errorhandler(404)
@@ -87,8 +89,10 @@ def create_app(test_config=None):
     # Create the database on first run and upgrade an existing legacy one (never for test configs)
     if not test_config:
         with app.app_context():
-            if not os.path.exists(app.config["DATABASE_PATH"]):
-                db.create_all()
+            # create_all only adds missing tables (e.g. messages on an existing database).
+            import models  # noqa: F401  registers every table before create_all
+
+            db.create_all()
             result = upgrade_legacy_schema(db.engine)
             app.logger.info(result.describe())
 

@@ -1,0 +1,57 @@
+{#
+  Conversations of the current user, as starter or as publisher. Context from messages.inbox:
+    conversations (newest activity first), unread ({conversation id: count}), kinds.
+#}
+{% extends "base.html" %}
+{% from "_macros.html" import page_header, empty_state, status_badge %}
+{% block title %}Mensajes{% endblock %}
+
+{% block content %}
+{% set total_unread = unread.values()|sum %}
+{{ page_header("Mensajes",
+    ("Tiene " ~ total_unread ~ (" mensaje sin leer" if total_unread == 1 else " mensajes sin leer")) if total_unread else "Conversaciones sobre objetos perdidos y encontrados.",
+    "bi-chat-dots") }}
+
+{% if not conversations %}
+  {{ empty_state(
+      "Aún no tiene conversaciones.",
+      "Abra un reporte y use «¿Es tuyo o lo encontraste?» para escribirle a quien lo publicó.",
+      url_for('main.index'), "Ver reportes", icon="bi-chat-square-text") }}
+{% else %}
+<ul class="inbox-list">
+  {% for c in conversations %}
+  {% set other = c.other_user(current_user.id) %}
+  {% set last = c.messages[-1] if c.messages else none %}
+  {% set n = unread.get(c.id, 0) %}
+  <li>
+    <a class="inbox-row{{ ' is-unread' if n }}" href="{{ url_for('messages.thread', conversation_id=c.id) }}">
+      <span class="inbox-row__thumb" aria-hidden="true">
+        {% if c.item.image_filename %}
+        <img src="{{ url_for('static', filename='uploads/' ~ c.item.image_filename) }}" alt="" width="56" height="56">
+        {% else %}
+        <i class="bi bi-box-seam"></i>
+        {% endif %}
+      </span>
+      <span class="inbox-row__body">
+        <span class="inbox-row__top">
+          <strong class="inbox-row__item">{{ c.item.name }}</strong>
+          <span class="kind-badge kind--{{ c.kind }}">{{ kinds.get(c.kind, c.kind) }}</span>
+          {{ status_badge(c.item.status) }}
+        </span>
+        <span class="inbox-row__who">
+          {% if c.item.user_id == current_user.id %}Le escribió {{ other.username }}{% else %}Conversación con {{ other.username if other else "—" }}{% endif %}
+        </span>
+        {% if last %}
+        <span class="inbox-row__preview">{% if last.sender_id == current_user.id %}Usted: {% endif %}{{ last.body|truncate(110) }}</span>
+        {% endif %}
+      </span>
+      <span class="inbox-row__side">
+        <span class="inbox-row__when">{{ c.updated_at|fecha_hora }}</span>
+        {% if n %}<span class="nav-badge" aria-label="{{ n }} sin leer">{{ n }}</span>{% endif %}
+      </span>
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

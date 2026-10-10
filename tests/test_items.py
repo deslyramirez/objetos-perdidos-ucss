@@ -742,7 +742,9 @@ def test_view_of_another_users_report_is_open_but_read_only(maria, other_user_it
     assert f'href="/edit/{other_user_item.id}"' not in body
     assert f'action="/delete/{other_user_item.id}"' not in body
     assert f'action="/item/{other_user_item.id}/returned"' not in body
-    assert "btn-primary" not in body and "btn-danger" not in body
+    assert "btn-danger" not in body
+    # The only action left to other users is writing to the publisher.
+    assert f'action="/messages/start/{other_user_item.id}"' in body
 
 
 def test_view_of_a_missing_report_is_a_spanish_404(maria):

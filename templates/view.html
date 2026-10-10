@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import delete_form, status_badge, csrf_field, CATEGORY_ICONS, STATUS_ICONS %}
+{% from "_macros.html" import delete_form, status_badge, csrf_field, field, CATEGORY_ICONS, STATUS_ICONS %}
 {% set cat = item.category if item.category in CATEGORY_ICONS else 'other' %}
 {% block title %}{{ item.name }}{% endblock %}
 
@@ -64,7 +64,12 @@
             </div>
             <div>
               <dt>Reportado por</dt>
-              <dd>{{ item.user.username if item.user else "—" }}</dd>
+              <dd class="break-words">
+                {% if item.user %}
+                {{ item.user.username }}
+                {% if item.user.email %}<a class="reporter-email" href="mailto:{{ item.user.email }}"><i class="bi bi-envelope" aria-hidden="true"></i>{{ item.user.email }}</a>{% endif %}
+                {% else %}—{% endif %}
+              </dd>
             </div>
             <div>
               <dt>Registrado el</dt>
@@ -92,10 +97,57 @@
             </a>
             {{ delete_form(url_for('main.delete', item_id=item.id), 'Eliminar', '¿Desea eliminar el reporte «' ~ item.name ~ '»? Esta acción no se puede deshacer.', 'md') }}
           </div>
+
+          <section class="contact-box mt-8" aria-labelledby="received-title">
+            <h2 id="received-title" class="contact-box__title">
+              <i class="bi bi-chat-dots" aria-hidden="true"></i> Mensajes recibidos
+              <span class="chip-count">{{ received|length }}</span>
+            </h2>
+            {% if received %}
+            <ul class="received-list">
+              {% for c in received %}
+              {% set n = received_unread.get(c.id, 0) %}
+              <li>
+                <a class="received-row{{ ' is-unread' if n }}" href="{{ url_for('messages.thread', conversation_id=c.id) }}">
+                  <span class="kind-badge kind--{{ c.kind }}">{{ kinds.get(c.kind, c.kind) }}</span>
+                  <span class="received-row__who">{{ c.starter.username }}</span>
+                  <span class="received-row__when">{{ c.updated_at|fecha_hora }}</span>
+                  {% if n %}<span class="nav-badge" aria-label="{{ n }} sin leer">{{ n }}</span>{% endif %}
+                </a>
+              </li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-sm text-slate-500">Cuando alguien diga «Es mío» o «Lo encontré», aparecerá aquí.</p>
+            {% endif %}
+          </section>
           {% else %}
           <p class="mt-8 text-sm text-slate-500">
             <i class="bi bi-lock" aria-hidden="true"></i> Solo quien creó el reporte puede modificarlo.
           </p>
+
+          {% if my_conversation %}
+          <section class="contact-box mt-4" aria-labelledby="contact-title">
+            <h2 id="contact-title" class="contact-box__title"><i class="bi bi-chat-dots" aria-hidden="true"></i> Ya escribiste sobre este objeto</h2>
+            <p class="text-sm text-slate-600">Continúa la conversación con {{ item.user.username }}.</p>
+            <a class="btn btn-primary mt-3" href="{{ url_for('messages.thread', conversation_id=my_conversation.id) }}">
+              <i class="bi bi-chat-left-text" aria-hidden="true"></i> Ver conversación
+            </a>
+          </section>
+          {% elif contact_form and not item.is_returned %}
+          <section class="contact-box mt-4" aria-labelledby="contact-title">
+            <h2 id="contact-title" class="contact-box__title"><i class="bi bi-chat-dots" aria-hidden="true"></i> ¿Es tuyo o lo encontraste?</h2>
+            <p class="text-sm text-slate-600 mb-3">Escríbele a {{ item.user.username }} desde aquí, aunque el contacto publicado esté mal. Si es tuyo, menciona un detalle que solo el dueño conozca.</p>
+            <form method="post" action="{{ url_for('messages.start', item_id=item.id) }}" novalidate>
+              {{ contact_form.hidden_tag() }}
+              {{ field(contact_form.kind) }}
+              {{ field(contact_form.body, rows=3, maxlength=1000, placeholder='Ejemplo: Es mi celular, tiene de fondo una foto de mi perro.') }}
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-send" aria-hidden="true"></i> Enviar mensaje
+              </button>
+            </form>
+          </section>
+          {% endif %}
           {% endif %}
         </div>
 

@@ -75,3 +75,51 @@ class Item(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
     user = db.relationship('User', backref='items')
+
+
+# -----------------------------
+# CONVERSATIONS ABOUT A REPORT
+# -----------------------------
+class Conversation(db.Model):
+    """One thread per report and per person who writes to its publisher."""
+
+    __table_args__ = (db.UniqueConstraint("item_id", "starter_id", name="uq_conversation_item_starter"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    item_id = db.Column(db.Integer, db.ForeignKey("item.id"), nullable=False, index=True)
+    starter_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    kind = db.Column(db.String(20), nullable=False, default="question")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    item = db.relationship(
+        "Item",
+        backref=db.backref("conversations", cascade="all, delete-orphan", passive_deletes=False),
+    )
+    starter = db.relationship("User", foreign_keys=[starter_id])
+    messages = db.relationship(
+        "Message",
+        backref="conversation",
+        cascade="all, delete-orphan",
+        order_by="Message.created_at, Message.id",
+    )
+
+    def other_user(self, user_id):
+        """The other participant: the publisher for the starter and the starter for the publisher."""
+        return self.item.user if user_id == self.starter_id else self.starter
+
+    def has_participant(self, user_id):
+        return user_id is not None and user_id in (self.starter_id, self.item.user_id)
+
+
+class Message(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(
+        db.Integer, db.ForeignKey("conversation.id"), nullable=False, index=True
+    )
+    sender_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    read_at = db.Column(db.DateTime, nullable=True)
+
+    sender = db.relationship("User")
