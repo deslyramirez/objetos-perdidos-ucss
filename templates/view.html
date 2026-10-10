@@ -28,7 +28,7 @@
         <div class="min-w-0 md:col-start-2 md:row-start-1 md:row-span-2">
           <p class="detail-eyebrow"><i class="bi {{ CATEGORY_ICONS[cat] }}" aria-hidden="true"></i> {{ item.category|categoria_label if item.category else "Sin categoría" }}</p>
           <h1 class="detail-title">{{ item.name }}</h1>
-          {% if item.is_inactive and (is_owner or admin_view) %}
+          {% if item.is_inactive and admin_view %}
           <div class="alert alert-warning mt-3" role="status">
             <i class="bi bi-archive-fill mt-0.5" aria-hidden="true"></i>
             <div>
@@ -154,12 +154,7 @@
             <p class="item-description text-slate-700">{{ item.description or "Sin descripción." }}</p>
           </section>
 
-          {% if is_owner and item.is_inactive and not admin_view %}
-          <p class="mt-8 text-sm text-slate-500">
-            <i class="bi bi-archive" aria-hidden="true"></i> Este reporte fue desactivado y ya no se puede modificar.
-          </p>
-
-          {% elif is_owner %}
+          {% if is_owner %}
           <div class="mt-8 flex flex-wrap items-center gap-3">
             {% if not item.is_returned %}
             <form method="post" action="{{ url_for('main.mark_returned', item_id=item.id) }}" class="inline-block">

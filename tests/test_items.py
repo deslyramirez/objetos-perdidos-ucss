@@ -1049,10 +1049,10 @@ def test_only_the_owner_can_cancel_a_request(maria, carlos, maria_user, make_ite
 def test_a_deactivated_report_cannot_be_changed_by_its_owner(maria, maria_user, make_item):
     item = make_item(maria_user, name="Archivado", approval="inactive")
 
-    body = _main(_text(maria.get(f"/item/{item.id}")))
-    assert "Desactivado por el administrador." in body
-    assert "fue desactivado y ya no se puede modificar" in body
-    assert f'href="/edit/{item.id}"' not in body
+    # It leaves the author's list and its page, like for everyone else.
+    assert "Archivado" not in _text(maria.get("/"))
+    response = maria.get(f"/item/{item.id}")
+    assert response.status_code == 404 and "Publicación no disponible" in _text(response)
 
     for path in (f"/edit/{item.id}", f"/delete/{item.id}", f"/item/{item.id}/returned"):
         response = maria.post(path, follow_redirects=True)

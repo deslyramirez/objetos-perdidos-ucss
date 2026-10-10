@@ -342,7 +342,7 @@ def render_item_view(item, contact_form=None):
         "admin_view": admin_view,
         "approval_labels": APPROVAL_LABELS,
     }
-    if not item.is_approved and not is_owner and not admin_view:
+    if not admin_view and (item.is_inactive or (not item.is_approved and not is_owner)):
         return render_template("view_hidden.html", **context), 404
     if is_owner:
         received = received_conversations(item)

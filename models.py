@@ -152,8 +152,12 @@ class Message(db.Model):
 
 
 def visible_items_filter(user=None):
-    """Published reports, plus the user's own reports in any moderation state."""
+    """Published reports, plus the user's own reports while in review or disapproved.
+
+    A deactivated report disappears for everyone, its author included; only the administrator
+    sees it (Moderación › Desactivadas and the Excel summary).
+    """
     published = Item.approval == "approved"
     if user is not None and getattr(user, "is_authenticated", False):
-        return db.or_(published, Item.user_id == user.id)
+        return db.or_(published, db.and_(Item.user_id == user.id, Item.approval != "inactive"))
     return published

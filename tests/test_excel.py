@@ -225,6 +225,10 @@ def test_deactivating_hides_the_report_but_keeps_it_in_the_excel(admin, carlos, 
     other = browser_for("ana")
     assert "Billetera" not in _text(other.get("/"))
     assert other.get(f"/item/{item.id}").status_code == 404
+    # The author no longer sees it either: only the administrator does.
+    assert "Billetera" not in _text(carlos.get("/"))
+    assert carlos.get(f"/item/{item.id}").status_code == 404
+    assert admin.get(f"/item/{item.id}").status_code == 200
     assert "Billetera" in _text(admin.get("/admin/moderacion?tab=desactivadas"))
     rows = _table(_workbook(admin.get("/export/excel"))["Reportes"])
     assert [(row["Objeto"], row["Publicación"]) for row in rows] == [("Billetera", "Desactivado")]
