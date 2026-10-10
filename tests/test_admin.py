@@ -93,3 +93,42 @@ def test_old_user_table_gets_the_admin_column(tmp_path):
     engine.dispose()
 
     assert "is_admin" in columns and value == 0
+
+
+def test_create_admin_account_generates_a_password(app):
+    from admin import create_admin_account
+
+    user, password = create_admin_account()
+
+    assert (user.username, user.email, user.is_admin) == ("admin", "admin@gmail.com", True)
+    assert len(password) >= 10 and user.check_password(password)
+
+
+def test_create_admin_account_again_resets_the_password_without_duplicates(app):
+    from admin import create_admin_account
+
+    create_admin_account("primera123")
+    user, password = create_admin_account("segunda123")
+
+    assert User.query.count() == 1
+    assert password == "segunda123" and user.check_password("segunda123")
+
+
+def test_create_admin_account_reuses_an_account_with_that_email(app, make_user):
+    from admin import create_admin_account
+
+    make_user("profe", email="admin@gmail.com")
+    user, _ = create_admin_account("clave1234")
+
+    assert User.query.count() == 1
+    assert user.username == "profe" and user.is_admin
+
+
+def test_admin_account_can_log_in(app, browser_for):
+    from admin import create_admin_account
+
+    create_admin_account("clave1234")
+    browser = browser_for()
+    browser.post("/auth/login", data={"username": "admin", "password": "clave1234"})
+
+    assert "Administrador" in _text(browser.get("/"))

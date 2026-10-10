@@ -324,24 +324,14 @@ def test_sender_can_delete_their_message(maria, report):
     assert Conversation.query.count() == 1
 
 
-def test_either_participant_can_delete_the_conversation(carlos, maria, report):
+def test_conversations_cannot_be_deleted(carlos, maria, report):
     _start(maria, report)
     conversation = Conversation.query.one()
 
-    response = carlos.post(f"/messages/{conversation.id}/delete")
-
-    assert response.status_code == 302
-    assert response.headers["Location"].endswith("/messages/")
-    assert Conversation.query.count() == 0 and Message.query.count() == 0
-    assert "¿Es tuyo o lo encontraste?" in _text(maria.get(f"/item/{report.id}"))
-
-
-def test_outsiders_cannot_delete_a_conversation(browser_for, maria, report):
-    _start(maria, report)
-    conversation = Conversation.query.one()
-
-    assert browser_for("intruso").post(f"/messages/{conversation.id}/delete").status_code == 404
-    assert Conversation.query.count() == 1
+    for browser in (carlos, maria):
+        assert "Eliminar conversación" not in _text(browser.get(f"/messages/{conversation.id}"))
+        assert browser.post(f"/messages/{conversation.id}/delete").status_code in (404, 405)
+    assert Conversation.query.count() == 1 and Message.query.count() == 1
 
 
 def test_starter_can_change_the_reason_but_the_publisher_cannot(carlos, maria, report):

@@ -4,7 +4,7 @@
     kind_form (ConversationKindForm), kinds, message_max.
 #}
 {% extends "base.html" %}
-{% from "_macros.html" import field, status_badge, csrf_field, delete_form %}
+{% from "_macros.html" import field, status_badge, csrf_field %}
 {% block title %}Mensajes · {{ item.name }}{% endblock %}
 
 {% block content %}
@@ -63,7 +63,6 @@
           </form>
         </details>
         {% endif %}
-        {{ delete_form(url_for('messages.delete_conversation', conversation_id=conversation.id), 'Eliminar conversación', '¿Eliminar esta conversación? Se borrará para ambas personas y no se puede deshacer.') }}
       </div>
     </div>
   </div>

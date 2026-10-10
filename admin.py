@@ -1,7 +1,12 @@
 """Administrator role: schema upgrade for existing databases and granting/revoking the role."""
 
+import secrets
+
 from extensions import db
 from models import User
+
+ADMIN_USERNAME = "admin"
+ADMIN_EMAIL = "admin@gmail.com"
 
 
 def ensure_user_columns(engine):
@@ -24,3 +29,22 @@ def set_admin(username, value=True):
 
 def admin_usernames():
     return [u.username for u in User.query.filter_by(is_admin=True).order_by(User.username)]
+
+
+def create_admin_account(password=None, username=ADMIN_USERNAME, email=ADMIN_EMAIL):
+    """Create (or reset) the administrator account. Return (user, password).
+
+    The password is never stored in the code: it is generated here unless one is given. If the
+    email already belongs to an account, that account becomes the administrator.
+    """
+    password = password or secrets.token_urlsafe(9)
+    user = User.query.filter(db.func.lower(User.email) == email.lower()).first()
+    if user is None:
+        user = User.query.filter(db.func.lower(User.username) == username.lower()).first()
+    if user is None:
+        user = User(username=username, email=email)
+        db.session.add(user)
+    user.is_admin = True
+    user.set_password(password)
+    db.session.commit()
+    return user, password

@@ -242,17 +242,6 @@ def change_kind(conversation_id):
     return redirect(url_for("messages.thread", conversation_id=conversation.id))
 
 
-@messages.route("/<int:conversation_id>/delete", methods=["POST"])
-@login_required
-def delete_conversation(conversation_id):
-    conversation = _participant_conversation(conversation_id)
-    db.session.delete(conversation)
-    if _commit(SAVE_FAILED):
-        flash("Conversación eliminada para ambas personas.", "info")
-        return redirect(url_for("messages.inbox"))
-    return redirect(url_for("messages.thread", conversation_id=conversation_id))
-
-
 @messages.route("/message/<int:message_id>/edit", methods=["POST"])
 @login_required
 def edit_message(message_id):
