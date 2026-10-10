@@ -258,11 +258,13 @@ def test_anonymous_pages_render_inside_the_base_layout(client, url):
 def test_authenticated_pages_keep_the_exact_default_chrome(logged_in):
     html = _text(logged_in.get("/"))
 
+    # Regular users: menu in the top bar, no sidebar.
     assert (
-        '<body class="app-shell has-sidebar flex min-h-screen flex-col font-sans text-slate-900 antialiased"'
+        '<body class="app-shell has-topnav flex min-h-screen flex-col font-sans text-slate-900 antialiased"'
         in html
     )
-    assert '<aside id="nav-menu" class="app-sidebar" aria-label="Navegación principal">' in html
+    assert '<nav class="app-topnav" aria-label="Navegación principal">' in html
+    assert "app-sidebar" not in html
     assert '<header class="app-header">' in html
     assert '<footer class="app-footer">' in html
     assert (
@@ -756,3 +758,19 @@ def test_stock_badge_macro_is_gone(app):
     macros = (Path(app.root_path) / "templates" / "_macros.html").read_text(encoding="utf-8")
 
     assert "stock_badge" not in macros
+
+
+def test_admin_keeps_the_sidebar_layout(logged_in, admin_maria):
+    html = _text(logged_in.get("/"))
+
+    assert '<body class="app-shell has-sidebar flex' in html
+    assert '<aside id="nav-menu" class="app-sidebar" aria-label="Navegación principal">' in html
+    assert 'class="app-topnav"' not in html
+
+
+def test_top_navigation_marks_the_current_page(logged_in):
+    html = _text(logged_in.get("/messages/"))
+    topnav = html.split('class="app-topnav"', 1)[1].split("</nav>", 1)[0]
+
+    active = re.findall(r'<a[^>]*aria-current="page"[^>]*>', topnav)
+    assert len(active) == 1 and 'href="/messages/"' in active[0]

@@ -2545,3 +2545,36 @@ body.app-shell .app-sidebar .app-nav-link.is-active::before { left: -.5rem; }
   .moderation-card { flex-direction: column; }
   .moderation-card__thumb { width: 100%; height: 9rem; }
 }
+
+/* Top navigation for regular users (the administrator keeps the sidebar). */
+body.app-shell.has-topnav .app-header__inner { max-width: 82rem; margin: 0 auto; flex-wrap: wrap; row-gap: .4rem; }
+body.app-shell.has-topnav .app-topbrand { gap: .7rem; text-decoration: none; }
+body.app-shell.has-topnav .app-topbrand .brand-logo { width: 8.5rem; }
+body.app-shell.has-topnav .app-topbrand .brand-logo-panel { min-height: 0; padding: .3rem .45rem; border: 1px solid var(--line); border-radius: .6rem; box-shadow: none; }
+body.app-shell.has-topnav .app-topbrand .brand-product { padding-left: .7rem; border-left: 1px solid var(--line); color: var(--ink); font-size: 1rem; font-weight: 800; white-space: nowrap; }
+.app-topnav { display: flex; align-items: center; gap: .3rem; margin-left: 1.25rem; }
+body.app-shell .app-topnav .app-nav-link {
+  display: inline-flex; align-items: center; gap: .45rem; padding: .5rem .85rem; border-radius: .7rem;
+  color: var(--color-slate-700); font-size: .92rem; font-weight: 600; white-space: nowrap; text-decoration: none;
+  transform: none;
+}
+body.app-shell .app-topnav .app-nav-link .bi { color: var(--c); font-size: 1.05rem; }
+body.app-shell .app-topnav .app-nav-link:hover,
+body.app-shell .app-topnav .app-nav-link:focus-visible { background: #eef6f8; color: #0f344a; transform: none; }
+body.app-shell .app-topnav .app-nav-link.is-active {
+  background: color-mix(in srgb, var(--c) 13%, #fff); color: #0f344a; box-shadow: inset 0 -2px 0 var(--c);
+}
+body.app-shell .app-topnav .app-nav-link.is-active::before,
+body.app-shell .app-topnav .app-nav-link.is-active::after { display: none; }
+body.app-shell .app-topnav .nav-badge { margin-left: .1rem; }
+@media (max-width: 860px) {
+  body.app-shell.has-topnav .app-topbrand .brand-product { display: none; }
+  .app-topnav { order: 3; flex-basis: 100%; margin: 0 -.25rem; padding: 0 .25rem .2rem; overflow-x: auto; scrollbar-width: none; }
+  .app-topnav::-webkit-scrollbar { display: none; }
+}
+@media (max-width: 860px) {
+  .app-topnav { overflow: visible; gap: .25rem; }
+  body.app-shell .app-topnav .app-nav-link { position: relative; flex: 1 1 0; flex-direction: column; justify-content: center; gap: .15rem; padding: .4rem .2rem; font-size: .74rem; text-align: center; white-space: normal; line-height: 1.15; }
+  body.app-shell .app-topnav .app-nav-link .bi { font-size: 1.15rem; }
+  body.app-shell .app-topnav .nav-badge { position: absolute; top: .15rem; right: calc(50% - 1.6rem); margin: 0; }
+}

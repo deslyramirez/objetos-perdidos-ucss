@@ -93,11 +93,11 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 
     <!-- Design system components -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css', v=37) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css', v=39) }}">
     {% block head %}{% endblock %}
 </head>
 
-<body class="{% block body_class %}app-shell{{ ' has-sidebar' if current_user.is_authenticated }} flex min-h-screen flex-col font-sans text-slate-900 antialiased{% endblock %}" style="--c: {{ sections[section][2] }}">
+<body class="{% block body_class %}app-shell{{ (' has-sidebar' if is_admin else ' has-topnav') if current_user.is_authenticated }} flex min-h-screen flex-col font-sans text-slate-900 antialiased{% endblock %}" style="--c: {{ sections[section][2] }}">
 
     <a href="#main-content"
        class="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow">
@@ -105,8 +105,8 @@
     </a>
 
     {% block header %}
-    {% if current_user.is_authenticated %}
-    <!-- SIDEBAR -->
+    {% if is_admin %}
+    <!-- SIDEBAR (administrator) -->
     <aside id="nav-menu" class="app-sidebar" aria-label="Navegación principal">
         <a href="{{ home_url }}" class="brand-lockup" aria-label="Objetos perdidos · Universidad Católica Sedes Sapientiae">
             <span class="brand-logo-panel"><img class="brand-logo" src="{{ url_for('static', filename='img/ucss-logo.png', v=2) }}" alt="Universidad Católica Sedes Sapientiae (UCSS)"></span>
@@ -114,26 +114,22 @@
         </a>
 
         <nav class="app-sidebar__nav">
-            {% if is_admin %}
             <div class="app-sidebar__section">
                 <p class="app-sidebar__group">Administración</p>
                 {{ nav_link(url_for('dashboard.home'), 'dashboard', section == 'dashboard') }}
                 {{ nav_link(url_for('admin.moderation'), 'moderation', section == 'moderation', moderation_count) }}
             </div>
-            {% endif %}
             <div class="app-sidebar__section">
                 <p class="app-sidebar__group">Reportes</p>
                 {{ nav_link(url_for('main.index'), 'reports', section == 'reports') }}
                 {{ nav_link(url_for('main.add'), 'add', section == 'add') }}
                 {{ nav_link(url_for('messages.inbox'), 'messages', section == 'messages', unread_messages) }}
             </div>
-            {% if is_admin %}
             <div class="app-sidebar__section">
                 <p class="app-sidebar__group">Datos</p>
                 {{ nav_link(url_for('main.import_csv'), 'import', section == 'import') }}
                 {{ nav_link(url_for('main.export_csv'), 'export') }}
             </div>
-            {% endif %}
         </nav>
 
     </aside>
@@ -150,11 +146,23 @@
             </button>
 
             {% if current_user.is_authenticated %}
+            {% if is_admin %}
             <p class="app-breadcrumb">
                 <a href="{{ home_url }}">Objetos perdidos</a>
                 <span aria-hidden="true">/</span>
                 <strong>{{ sections[section][0] }}</strong>
             </p>
+            {% else %}
+            <a href="{{ home_url }}" class="brand-lockup app-topbrand" aria-label="Objetos perdidos · Universidad Católica Sedes Sapientiae">
+                <span class="brand-logo-panel"><img class="brand-logo" src="{{ url_for('static', filename='img/ucss-logo.png', v=2) }}" alt="Universidad Católica Sedes Sapientiae (UCSS)"></span>
+                <span class="brand-product">Objetos perdidos</span>
+            </a>
+            <nav class="app-topnav" aria-label="Navegación principal">
+                {{ nav_link(url_for('main.index'), 'reports', section == 'reports') }}
+                {{ nav_link(url_for('main.add'), 'add', section == 'add') }}
+                {{ nav_link(url_for('messages.inbox'), 'messages', section == 'messages', unread_messages) }}
+            </nav>
+            {% endif %}
 
             <div class="app-header__actions">
                 <!-- User menu -->
