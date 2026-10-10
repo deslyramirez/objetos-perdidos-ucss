@@ -989,6 +989,33 @@ def test_delete_by_a_user_sends_a_request_and_keeps_the_report(app, maria, maria
     assert _stored_files(app) == ["1_foto.png"]
 
 
+@pytest.mark.parametrize("approval", ["pending", "rejected"])
+def test_an_unpublished_report_is_deleted_by_its_author_at_once(maria, maria_user, make_item, approval):
+    item = make_item(maria_user, name="Borrador", approval=approval)
+
+    body = _main(_text(maria.get(f"/item/{item.id}")))
+    assert f'action="/delete/{item.id}"' in body
+    assert "Solicitar eliminación" not in body
+
+    response = maria.post(f"/delete/{item.id}", follow_redirects=True)
+
+    assert "Reporte eliminado correctamente." in _text(response)
+    assert Item.query.count() == 0
+
+
+def test_editing_drops_a_pending_deletion_request(maria, maria_user, make_item):
+    item = make_item(maria_user, name="Llaves", category="keys", contact="999", description="Tres")
+    maria.post(f"/delete/{item.id}")
+
+    maria.post(f"/edit/{item.id}", data={
+        "name": "Llaves", "description": "Tres llaves", "category": "keys", "location": "Patio",
+        "event_date": "2026-03-10", "status": "lost", "contact": "999",
+    }, content_type="multipart/form-data")
+
+    item = db.session.get(Item, item.id)
+    assert item.approval == "pending" and item.deletion_requested_at is None
+
+
 def test_a_second_request_changes_nothing(maria, maria_user, make_item):
     item = make_item(maria_user, name="Repetido")
     maria.post(f"/delete/{item.id}", data={"reason": "primera"})

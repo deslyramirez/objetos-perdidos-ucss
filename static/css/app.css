@@ -2580,8 +2580,21 @@ body.app-shell .app-topnav .nav-badge { margin-left: .1rem; }
   body.app-shell .app-topnav .nav-badge { position: absolute; top: .15rem; right: calc(50% - 1.6rem); margin: 0; }
 }
 
-/* Import page: three steps (template, fill in, upload). */
-.import-steps { display: grid; gap: .8rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
-.import-step { display: flex; gap: .8rem; padding: 1rem; border: 1px solid #dce9ee; border-radius: 1rem; background: #fff; color: #475569; font-size: .88rem; }
-.import-step__num { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 999px; background: #c27a16; color: #fff; font-weight: 800; }
-.import-step__title { margin-bottom: .2rem; color: #123e55; font-size: .98rem; font-weight: 800; }
+/* Import page: three steps (template, fill in, upload) and the column guide. */
+.import-steps { position: relative; display: grid; gap: 1rem; grid-template-columns: repeat(3, 1fr); counter-reset: none; }
+.import-steps::before { content: ""; position: absolute; top: 1.15rem; left: 16.6%; right: 16.6%; border-top: 2px dashed #f0c27a; }
+.import-step { position: relative; display: flex; flex-direction: column; align-items: center; gap: .35rem; text-align: center; }
+.import-step__num { display: inline-flex; align-items: center; justify-content: center; width: 2.3rem; height: 2.3rem; border: 4px solid #fff; border-radius: 999px; background: #c27a16; color: #fff; font-weight: 800; box-shadow: 0 0 0 1px #f0c27a; }
+.import-step__title { color: #123e55; font-size: .98rem; font-weight: 800; }
+.import-step__text { max-width: 16rem; color: #64748b; font-size: .86rem; line-height: 1.4; }
+.import-steps__footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .6rem 1rem; margin-top: 1.4rem; padding-top: 1.2rem; border-top: 1px solid #eef2f5; }
+.import-steps__footer p { display: inline-flex; align-items: center; gap: .35rem; color: #9a5b00; font-size: .85rem; font-weight: 700; }
+.import-guide th[scope="row"] { padding-left: 1rem; color: #123e55; font-weight: 800; white-space: nowrap; }
+.import-guide td:last-child { color: #64748b; font-style: italic; white-space: nowrap; }
+.import-notes { padding: .9rem 1rem; border-radius: .8rem; background: #f6fafb; }
+.import-notes__title { display: flex; align-items: center; gap: .4rem; margin-bottom: .4rem; color: #123e55; font-weight: 800; }
+@media (max-width: 700px) {
+  .import-steps { grid-template-columns: 1fr; }
+  .import-steps::before { display: none; }
+  .import-guide td:last-child { white-space: normal; }
+}

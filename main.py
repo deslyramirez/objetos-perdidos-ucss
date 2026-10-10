@@ -32,7 +32,6 @@ from domain import (
     CATEGORY_LABELS,
     CONVERSATION_KINDS,
     APPROVAL_LABELS,
-    DEFAULT_STATUS,
     LEGACY_CATEGORY_MAP,
     STATUS_LABELS,
     SUMMARY_APPROVALS,
@@ -72,7 +71,8 @@ CSV_HEADER = [
     "image_filename", "reported_by", "created_at",
 ]
 CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
-CSV_REQUIRED_COLUMNS = ("name", "location", "event_date")
+# Every field is required, as in the «Nuevo reporte» form.
+CSV_REQUIRED_COLUMNS = ("name", "location", "event_date", "description", "category", "status", "contact")
 # Column titles accepted on import (compared without accents, case or a trailing '*'): the English
 # keys of the CSV export and the Spanish titles of the Excel export and template.
 IMPORT_COLUMN_ALIASES = {
@@ -448,6 +448,9 @@ def edit(item_id):
         if not is_admin(current_user):
             item.approval = "pending"
             item.rejection_reason = None
+            # Editing means the author wants to keep it: a pending deletion request is dropped.
+            item.deletion_requested_at = None
+            item.deletion_reason = None
 
         try:
             db.session.commit()
@@ -473,8 +476,9 @@ def edit(item_id):
 # -----------------------------
 # DELETE REPORT (ONLY CREATOR, POST ONLY)
 # -----------------------------
-# The administrator deletes their own reports at once. Everyone else sends a request: the
-# administrator then deactivates the report (kept in the Excel summary) or deletes it.
+# A report that was never published (in review or disapproved) is deleted by its author at
+# once, and so are the administrator's own reports. Once published, a regular user only sends a
+# request: the administrator then deactivates the report (kept in the Excel summary) or deletes it.
 @bp.route("/delete/<int:item_id>", methods=["POST"])
 @login_required
 def delete(item_id):
@@ -482,7 +486,7 @@ def delete(item_id):
     if denied is not None:
         return denied
 
-    if not is_admin(current_user):
+    if item.is_approved and not is_admin(current_user):
         return _request_deletion(item)
 
     image_filename = item.image_filename
@@ -801,35 +805,39 @@ def _parse_import_row(record, columns, today):
         return None, "fecha futura"
 
     description = cell("description")
+    if not description:
+        return None, "descripción requerida"
     if len(description) > ITEM_DESCRIPTION_MAX:
         return None, "descripción demasiado larga"
 
     raw_category = cell("category")
-    category = None
-    if raw_category:
-        category = CATEGORY_LOOKUP.get(_fold(raw_category))
-        if category is None:
-            return None, "categoría desconocida"
+    if not raw_category:
+        return None, "categoría requerida"
+    category = CATEGORY_LOOKUP.get(_fold(raw_category))
+    if category is None:
+        return None, "categoría desconocida"
 
     raw_status = cell("status")
-    status = DEFAULT_STATUS
-    if raw_status:
-        status = STATUS_LOOKUP.get(_fold(raw_status))
-        if status is None:
-            return None, "estado desconocido"
+    if not raw_status:
+        return None, "estado requerido"
+    status = STATUS_LOOKUP.get(_fold(raw_status))
+    if status is None:
+        return None, "estado desconocido"
 
     contact = cell("contact")
+    if not contact:
+        return None, "contacto requerido"
     if len(contact) > ITEM_CONTACT_MAX:
         return None, "contacto demasiado largo"
 
     return {
         "name": name,
-        "description": description or None,
+        "description": description,
         "category": category,
         "location": location,
         "event_date": event_date,
         "status": status,
-        "contact": contact or None,
+        "contact": contact,
     }, None
 
 
@@ -878,8 +886,8 @@ def import_csv():
     header_index, columns = _find_header(records)
     if any(column not in columns for column in CSV_REQUIRED_COLUMNS):
         return _import_error(
-            "El archivo debe incluir las columnas «Objeto», «Lugar» y «Fecha del suceso» "
-            "(o «name», «location» y «event_date»). Use la plantilla para no equivocarse."
+            "El archivo debe incluir todas las columnas: «Objeto», «Lugar», «Fecha del suceso», "
+            "«Descripción», «Categoría», «Estado» y «Contacto». Use la plantilla para no equivocarse."
         )
 
     # Row numbers follow the spreadsheet: the header is row 1, blank lines still count.

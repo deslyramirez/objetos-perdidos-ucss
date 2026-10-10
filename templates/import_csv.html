@@ -4,34 +4,36 @@
 
 {% block content %}
 <div class="mx-auto max-w-5xl space-y-6 internal-page internal-page--import">
-  {{ page_header("Importar reportes", "Cargue varios reportes a la vez desde la plantilla de Excel (o un CSV).", "bi-upload") }}
+  {{ page_header("Importar reportes", "Cargue varios reportes a la vez desde la plantilla de Excel.", "bi-upload") }}
 
-  <ol class="import-steps" aria-label="Pasos para importar">
-    <li class="import-step">
-      <span class="import-step__num" aria-hidden="true">1</span>
-      <div>
-        <p class="import-step__title">Descargue la plantilla</p>
-        <p>Trae las columnas listas, listas desplegables para categoría y estado, y control de fechas.</p>
-        <a href="{{ url_for('main.import_template') }}" class="btn btn-primary btn-sm mt-2">
+  <section class="card" aria-labelledby="import-steps-title">
+    <div class="card-header" id="import-steps-title">Cómo importar</div>
+    <div class="card-body">
+      <ol class="import-steps">
+        <li class="import-step">
+          <span class="import-step__num" aria-hidden="true">1</span>
+          <p class="import-step__title">Descargue la plantilla</p>
+          <p class="import-step__text">Es un Excel con las columnas y las listas ya preparadas.</p>
+        </li>
+        <li class="import-step">
+          <span class="import-step__num" aria-hidden="true">2</span>
+          <p class="import-step__title">Complétela</p>
+          <p class="import-step__text">Un objeto por fila, desde la fila 5, con todos los campos llenos.</p>
+        </li>
+        <li class="import-step">
+          <span class="import-step__num" aria-hidden="true">3</span>
+          <p class="import-step__title">Súbala</p>
+          <p class="import-step__text">Elija el archivo abajo y pulse «Importar archivo».</p>
+        </li>
+      </ol>
+      <div class="import-steps__footer">
+        <a href="{{ url_for('main.import_template') }}" class="btn btn-primary">
           <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Descargar plantilla (.xlsx)
         </a>
+        <p><i class="bi bi-asterisk" aria-hidden="true"></i> Todos los campos son obligatorios.</p>
       </div>
-    </li>
-    <li class="import-step">
-      <span class="import-step__num" aria-hidden="true">2</span>
-      <div>
-        <p class="import-step__title">Llénela en Excel</p>
-        <p>Un objeto por fila, desde la fila 5. «Objeto», «Lugar» y «Fecha del suceso» son obligatorias.</p>
-      </div>
-    </li>
-    <li class="import-step">
-      <span class="import-step__num" aria-hidden="true">3</span>
-      <div>
-        <p class="import-step__title">Súbala aquí abajo</p>
-        <p>Las filas con errores se omiten y se le indican al terminar; el resto se publica.</p>
-      </div>
-    </li>
-  </ol>
+    </div>
+  </section>
 
   <section class="card" aria-labelledby="csv-upload-title">
     <div class="card-header" id="csv-upload-title">Subir archivo</div>
@@ -41,8 +43,8 @@
         <div class="upload-panel mb-5">
           <div class="upload-panel__icon" aria-hidden="true"><i class="bi bi-file-earmark-spreadsheet"></i></div>
           <div class="upload-panel__copy">
-            <label class="upload-panel__title" for="file">Selecciona tu archivo Excel o CSV</label>
-            <p>Plantilla .xlsx, Excel exportado por el sistema o CSV. Hasta {{ max_rows|formato_numero }} filas y 5 MB.</p>
+            <label class="upload-panel__title" for="file">Selecciona tu archivo</label>
+            <p>Plantilla .xlsx (o CSV con las mismas columnas). Hasta {{ max_rows|formato_numero }} filas y 5 MB.</p>
           </div>
           <input type="file" id="file" name="file" class="form-input upload-panel__input"
                  accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
@@ -60,75 +62,67 @@
   </section>
 
   <section class="card" aria-labelledby="csv-format-title">
-    <div class="card-header" id="csv-format-title">Columnas del archivo</div>
+    <div class="card-header" id="csv-format-title">Cómo llenar la plantilla</div>
     <div class="card-body space-y-4 text-sm text-slate-700">
-      <p>
-        El sistema busca la fila de títulos (puede haber un título encima, como en la plantilla).
-        Las columnas desconocidas se ignoran y el orden no importa.
-      </p>
-
       <div class="table-wrap">
-        <table class="table">
-          <caption class="sr-only">Columnas admitidas</caption>
+        <table class="table import-guide">
+          <caption class="sr-only">Qué escribir en cada columna (todas son obligatorias)</caption>
           <thead>
             <tr>
               <th scope="col">Columna</th>
-              <th scope="col">Obligatoria</th>
-              <th scope="col">Valores permitidos</th>
+              <th scope="col">Qué escribir</th>
+              <th scope="col">Ejemplo</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td><strong>Objeto</strong> <code>name</code></td>
-              <td>Sí</td>
+              <th scope="row">Objeto</th>
               <td>Nombre del objeto. Hasta 120 caracteres.</td>
+              <td>Mochila azul</td>
             </tr>
             <tr>
-              <td><strong>Lugar</strong> <code>location</code></td>
-              <td>Sí</td>
+              <th scope="row">Lugar</th>
               <td>Dónde se perdió o se encontró. Hasta 120 caracteres.</td>
+              <td>Biblioteca central</td>
             </tr>
             <tr>
-              <td><strong>Fecha del suceso</strong> <code>event_date</code></td>
-              <td>Sí</td>
-              <td>Fecha de Excel, AAAA-MM-DD (2026-03-15) o DD/MM/AAAA (15/03/2026). No puede ser posterior a hoy.</td>
+              <th scope="row">Fecha del suceso</th>
+              <td>Fecha en formato DD/MM/AAAA. No puede ser posterior a hoy.</td>
+              <td>15/03/2026</td>
             </tr>
             <tr>
-              <td><strong>Descripción</strong> <code>description</code></td>
-              <td>No</td>
-              <td>Hasta 500 caracteres.</td>
+              <th scope="row">Descripción</th>
+              <td>Detalles que ayuden a reconocerlo. Hasta 500 caracteres.</td>
+              <td>Con un cuaderno y una casaca</td>
             </tr>
             <tr>
-              <td><strong>Categoría</strong> <code>category</code></td>
-              <td>No</td>
-              <td>
-                {% for key, label in categories.items() %}{{ label }}{{ ", " if not loop.last }}{% endfor %}.
-                Si está vacía, el reporte queda sin categoría.
-              </td>
+              <th scope="row">Categoría</th>
+              <td>Elija de la lista: {% for key, label in categories.items() %}{{ label }}{{ ", " if not loop.last }}{% endfor %}.</td>
+              <td>Mochilas y útiles</td>
             </tr>
             <tr>
-              <td><strong>Estado</strong> <code>status</code></td>
-              <td>No</td>
-              <td>
-                {% for key, label in statuses.items() %}{{ label }}{{ ", " if not loop.last }}{% endfor %}.
-                Si está vacío, se usa «Perdido».
-              </td>
+              <th scope="row">Estado</th>
+              <td>Elija de la lista: {% for key, label in statuses.items() %}{{ label }}{{ ", " if not loop.last }}{% endfor %}.</td>
+              <td>Perdido</td>
             </tr>
             <tr>
-              <td><strong>Contacto</strong> <code>contact</code></td>
-              <td>No</td>
+              <th scope="row">Contacto</th>
               <td>Correo o teléfono. Hasta 120 caracteres.</td>
+              <td>999 111 222</td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <ul class="list-disc space-y-1 pl-5">
-        <li>En un CSV los títulos pueden ir en español (como arriba) o en inglés (<code>name</code>, <code>location</code>…); el separador puede ser coma o punto y coma.</li>
-        <li>Guarde el CSV como «CSV UTF-8» para conservar tildes y eñes.</li>
-        <li>Las fotografías no se importan: puede agregarlas después con «Editar».</li>
-        <li>Los reportes importados quedan publicados a su nombre.</li>
-      </ul>
+      <div class="import-notes">
+        <p class="import-notes__title"><i class="bi bi-info-circle" aria-hidden="true"></i> Tenga en cuenta</p>
+        <ul class="list-disc space-y-1 pl-5">
+          <li>No cambie los títulos de la fila 4 de la plantilla.</li>
+          <li>Las filas vacías se ignoran; las filas con algún campo vacío o incorrecto se omiten y se le indican al terminar.</li>
+          <li>Los reportes importados quedan publicados a su nombre. Las fotografías se agregan después con «Editar».</li>
+          <li>También puede subir un Excel exportado por el sistema o un CSV (UTF-8, separado por coma o punto y coma) con los mismos títulos.</li>
+        </ul>
+      </div>
     </div>
   </section>
 </div>

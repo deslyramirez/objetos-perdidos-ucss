@@ -17,8 +17,8 @@ HEADER = [
     "image_filename", "reported_by", "created_at",
 ]
 READ_ERROR = "No se pudo leer el archivo. Verifique que sea un CSV válido."
-MISSING_COLUMNS = "El archivo debe incluir las columnas «Objeto», «Lugar» y «Fecha del suceso»"
-BASE = "name,location,event_date"
+MISSING_COLUMNS = "El archivo debe incluir todas las columnas: «Objeto», «Lugar», «Fecha del suceso»"
+BASE = "name,location,event_date,description,category,status,contact"
 
 
 def _text(response):
@@ -269,21 +269,17 @@ def test_import_page_documents_the_format_in_spanish(maria):
     assert 'name="csrf_token"' in body
     assert re.search(r'<input[^>]*type="file"[^>]*name="file"|<input[^>]*name="file"[^>]*type="file"', body)
     assert re.search(r'<label[^>]*for="file"', body)
-    for column in ("name", "location", "event_date", "description", "category", "status", "contact"):
-        assert f"<code>{column}</code>" in body, column
-    for column in ("quantity", "price"):
-        assert f"<code>{column}</code>" not in body, column
-    assert "Obligatoria" in body
     for label in ("Documentos", "Electrónica", "Llaves", "Ropa y accesorios", "Mochilas y útiles", "Otros"):
         assert label in body
     for label in ("Perdido", "Encontrado", "Entregado"):
         assert label in body
-    assert "AAAA-MM-DD" in body and "DD/MM/AAAA" in body
+    assert "DD/MM/AAAA" in body
     assert "UTF-8" in body
     assert "punto y coma" in body
     assert "2.000" in body
     for title in ("Objeto", "Lugar", "Fecha del suceso", "Descripción", "Categoría", "Estado", "Contacto"):
-        assert f"<strong>{title}</strong>" in body, title
+        assert f'<th scope="row">{title}</th>' in body, title
+    assert "Todos los campos son obligatorios." in body
     assert 'href="/import/plantilla"' in body
     assert 'accept=".xlsx,.csv' in body
 
@@ -307,7 +303,7 @@ def test_import_comma_separated_file(maria, maria_user):
     content = _csv(
         "name,location,event_date,description,category,status,contact",
         "Llaves,Biblioteca,2026-03-02,Con llavero,keys,found,ana@u.edu",
-        "Cartera,Cafetería,2026-03-05,,bags,lost,",
+        "Cartera,Cafetería,2026-03-05,Negra,bags,lost,999",
     )
 
     response = _upload(maria, content)
@@ -317,12 +313,15 @@ def test_import_comma_separated_file(maria, maria_user):
     items = _imported(maria_user)
     assert [(i.name, i.location, i.event_date, i.description, i.category, i.status, i.contact) for i in items] == [
         ("Llaves", "Biblioteca", date(2026, 3, 2), "Con llavero", "keys", "found", "ana@u.edu"),
-        ("Cartera", "Cafetería", date(2026, 3, 5), None, "bags", "lost", None),
+        ("Cartera", "Cafetería", date(2026, 3, 5), "Negra", "bags", "lost", "999"),
     ]
 
 
 def test_import_semicolon_separated_file(maria, maria_user):
-    content = _csv("name;location;event_date;description", "Llaves;Aula 3, ala norte;02/03/2026;Acero, inox")
+    content = _csv(
+        "name;location;event_date;description;category;status;contact",
+        "Llaves;Aula 3, ala norte;02/03/2026;Acero, inox;keys;lost;999",
+    )
 
     response = _upload(maria, content)
 
@@ -342,19 +341,19 @@ def test_import_semicolon_separated_file(maria, maria_user):
     ],
 )
 def test_import_accepts_both_date_formats(maria, maria_user, value, expected):
-    _upload(maria, _csv(BASE, f"Llaves,Aula,{value}"))
+    _upload(maria, _csv(BASE, f"Llaves,Aula,{value},Desc,keys,lost,999"))
 
     assert _imported(maria_user)[0].event_date == expected
 
 
 def test_import_accepts_today(maria, maria_user):
-    _upload(maria, _csv(BASE, f"Llaves,Aula,{today_local().isoformat()}"))
+    _upload(maria, _csv(BASE, f"Llaves,Aula,{today_local().isoformat()},Desc,keys,lost,999"))
 
     assert _imported(maria_user)[0].event_date == today_local()
 
 
 def test_import_accepts_utf8_bom_and_accents(maria, maria_user):
-    content = "\ufeffname,location,event_date,description\nÁrbol ñandú,Cafetería,2026-03-02,Descripción\n".encode("utf-8")
+    content = f"\ufeff{BASE}\nÁrbol ñandú,Cafetería,2026-03-02,Descripción,keys,lost,999\n".encode("utf-8")
 
     _upload(maria, content)
 
@@ -363,7 +362,10 @@ def test_import_accepts_utf8_bom_and_accents(maria, maria_user):
 
 
 def test_import_header_matching_is_case_and_space_insensitive_and_extra_columns_are_ignored(maria, maria_user):
-    content = _csv("ID, Name ,LOCATION,Color,Event_Date", "99,Cable,Aula,rojo,2026-03-02")
+    content = _csv(
+        "ID, Name ,LOCATION,Color,Event_Date, Description,CATEGORY,Status,contact",
+        "99,Cable,Aula,rojo,2026-03-02,Negro,electronics,lost,999",
+    )
 
     _upload(maria, content)
 
@@ -372,11 +374,11 @@ def test_import_header_matching_is_case_and_space_insensitive_and_extra_columns_
     assert item.id != 99
 
 
-def test_import_with_only_the_required_columns(maria, maria_user):
-    _upload(maria, _csv(BASE, "Solo lo básico,Aula,2026-03-02"))
+def test_import_without_the_optional_looking_columns_is_rejected(maria):
+    response = _upload(maria, _csv("name,location,event_date", "Solo lo básico,Aula,2026-03-02"))
 
-    item = _imported(maria_user)[0]
-    assert (item.description, item.category, item.status, item.contact) == (None, None, "lost", None)
+    assert MISSING_COLUMNS in _text(response)
+    assert Item.query.count() == 0
 
 
 @pytest.mark.parametrize(
@@ -394,11 +396,10 @@ def test_import_with_only_the_required_columns(maria, maria_user):
         ("general", "other"),
         ("office", "other"),
         ("consumable", "other"),
-        ("", None),
     ],
 )
 def test_import_normalizes_categories_from_keys_labels_and_legacy_keys(maria, maria_user, value, expected):
-    _upload(maria, _csv("name,location,event_date,category", f"Objeto,Aula,2026-03-02,{value}"))
+    _upload(maria, _csv(BASE, f"Objeto,Aula,2026-03-02,Desc,{value},lost,999"))
 
     assert _imported(maria_user)[0].category == expected
 
@@ -413,17 +414,16 @@ def test_import_normalizes_categories_from_keys_labels_and_legacy_keys(maria, ma
         ("ENCONTRADO", "found"),
         ("Entregado", "returned"),
         ("  entregado ", "returned"),
-        ("", "lost"),
     ],
 )
 def test_import_accepts_status_keys_and_spanish_labels(maria, maria_user, value, expected):
-    _upload(maria, _csv("name,location,event_date,status", f"Objeto,Aula,2026-03-02,{value}"))
+    _upload(maria, _csv(BASE, f"Objeto,Aula,2026-03-02,Desc,keys,{value},999"))
 
     assert _imported(maria_user)[0].status == expected
 
 
 def test_import_handles_quoted_fields_with_delimiters_and_newlines(maria, maria_user):
-    content = 'name,location,event_date,description\n"Cable, largo","Aula, 2",2026-03-02,"Linea 1\nLinea 2"\n'
+    content = f'{BASE}\n"Cable, largo","Aula, 2",2026-03-02,"Linea 1\nLinea 2",keys,lost,999\n'
 
     _upload(maria, content)
 
@@ -432,7 +432,7 @@ def test_import_handles_quoted_fields_with_delimiters_and_newlines(maria, maria_
 
 
 def test_import_skips_blank_lines_without_reporting_them(maria):
-    response = _upload(maria, f"{BASE}\nUno,Aula,2026-03-02\n\n\nDos,Aula,2026-03-02\n")
+    response = _upload(maria, f"{BASE}\nUno,Aula,2026-03-02,Desc,keys,lost,999\n\n\nDos,Aula,2026-03-02,Desc,keys,lost,999\n")
 
     html = _text(response)
     assert "Se importaron 2 reportes." in html
@@ -440,7 +440,7 @@ def test_import_skips_blank_lines_without_reporting_them(maria):
 
 
 def test_import_falls_back_to_latin1_when_the_file_is_not_utf8(maria, maria_user):
-    content = f"{BASE},description\nTornillo ñandú,Cafetería,2026-03-02,Descripción\n".encode("latin-1")
+    content = f"{BASE}\nTornillo ñandú,Cafetería,2026-03-02,Descripción,keys,lost,999\n".encode("latin-1")
 
     response = _upload(maria, content)
 
@@ -452,7 +452,7 @@ def test_import_falls_back_to_latin1_when_the_file_is_not_utf8(maria, maria_user
 def test_import_assigns_reports_to_the_current_user_only(maria, maria_user, carlos_user, make_item):
     make_item(carlos_user, name="De carlos")
 
-    _upload(maria, _csv(BASE, "De maria,Aula,2026-03-02"))
+    _upload(maria, _csv(BASE, "De maria,Aula,2026-03-02,Desc,keys,lost,999"))
 
     assert [i.name for i in _imported(maria_user)] == ["De maria"]
     assert [i.name for i in _imported(carlos_user)] == ["De carlos"]
@@ -460,8 +460,8 @@ def test_import_assigns_reports_to_the_current_user_only(maria, maria_user, carl
 
 def test_import_never_reads_image_filename_or_ownership_columns(maria, maria_user, carlos_user):
     content = _csv(
-        "name,location,event_date,image_filename,user_id,created_at",
-        f"Con imagen,Aula,2026-03-02,../../secret.png,{carlos_user.id},2001-01-01",
+        f"{BASE},image_filename,user_id,created_at",
+        f"Con imagen,Aula,2026-03-02,Desc,keys,lost,999,../../secret.png,{carlos_user.id},2001-01-01",
     )
 
     _upload(maria, content)
@@ -494,7 +494,7 @@ def test_export_then_import_round_trip_preserves_data(maria, maria_user, make_it
         maria_user, name="Teclado", description="Con, coma", category="electronics",
         location="Biblioteca", event_date=date(2026, 2, 3), status="found", contact="ana@u.edu",
     )
-    make_item(maria_user, name="Ratón ñ", description=None, category=None, event_date=date(2026, 2, 4), contact=None)
+    make_item(maria_user, name="Ratón ñ", description="Inalámbrico", category="other", event_date=date(2026, 2, 4), contact="999")
     exported = maria.get("/export/csv").get_data()
 
     _upload(maria, exported)
@@ -502,7 +502,7 @@ def test_export_then_import_round_trip_preserves_data(maria, maria_user, make_it
     clones = _imported(maria_user)[2:]
     assert [(i.name, i.description, i.category, i.location, i.event_date, i.status, i.contact) for i in clones] == [
         ("Teclado", "Con, coma", "electronics", "Biblioteca", date(2026, 2, 3), "found", "ana@u.edu"),
-        ("Ratón ñ", None, None, "Biblioteca central", date(2026, 2, 4), "lost", None),
+        ("Ratón ñ", "Inalámbrico", "other", "Biblioteca central", date(2026, 2, 4), "lost", "999"),
     ]
 
 
@@ -516,29 +516,33 @@ def _tomorrow():
 @pytest.mark.parametrize(
     "row, reason",
     [
-        (",Aula,2026-03-02,,,", "nombre requerido"),
-        ("   ,Aula,2026-03-02,,,", "nombre requerido"),
-        ("x" * 121 + ",Aula,2026-03-02,,,", "nombre demasiado largo"),
-        ("Obj,,2026-03-02,,,", "lugar requerido"),
-        ("Obj,   ,2026-03-02,,,", "lugar requerido"),
-        ("Obj," + "l" * 121 + ",2026-03-02,,,", "lugar demasiado largo"),
-        ("Obj,Aula,,,,", "fecha inválida"),
-        ("Obj,Aula,hoy,,,", "fecha inválida"),
-        ("Obj,Aula,2026-02-30,,,", "fecha inválida"),
-        ("Obj,Aula,31/04/2026,,,", "fecha inválida"),
-        ("Obj,Aula,2026/03/02,,,", "fecha inválida"),
-        ("Obj,Aula,03-02-2026,,,", "fecha inválida"),
-        (f"Obj,Aula,{'9999-12-31'},,,", "fecha futura"),
-        ("Obj,Aula,2026-03-02," + "d" * 501 + ",,", "descripción demasiado larga"),
-        ("Obj,Aula,2026-03-02,,Herramientas,", "categoría desconocida"),
-        ("Obj,Aula,2026-03-02,,,archivado", "estado desconocido"),
-        ("Obj,Aula,2026-03-02,,,," + "c" * 121, "contacto demasiado largo"),
+        (",Aula,2026-03-02,D,keys,lost,9", "nombre requerido"),
+        ("   ,Aula,2026-03-02,D,keys,lost,9", "nombre requerido"),
+        ("x" * 121 + ",Aula,2026-03-02,D,keys,lost,9", "nombre demasiado largo"),
+        ("Obj,,2026-03-02,D,keys,lost,9", "lugar requerido"),
+        ("Obj,   ,2026-03-02,D,keys,lost,9", "lugar requerido"),
+        ("Obj," + "l" * 121 + ",2026-03-02,D,keys,lost,9", "lugar demasiado largo"),
+        ("Obj,Aula,,D,keys,lost,9", "fecha inválida"),
+        ("Obj,Aula,hoy,D,keys,lost,9", "fecha inválida"),
+        ("Obj,Aula,2026-02-30,D,keys,lost,9", "fecha inválida"),
+        ("Obj,Aula,31/04/2026,D,keys,lost,9", "fecha inválida"),
+        ("Obj,Aula,2026/03/02,D,keys,lost,9", "fecha inválida"),
+        ("Obj,Aula,03-02-2026,D,keys,lost,9", "fecha inválida"),
+        ("Obj,Aula,9999-12-31,D,keys,lost,9", "fecha futura"),
+        ("Obj,Aula,2026-03-02,,keys,lost,9", "descripción requerida"),
+        ("Obj,Aula,2026-03-02," + "d" * 501 + ",keys,lost,9", "descripción demasiado larga"),
+        ("Obj,Aula,2026-03-02,D,,lost,9", "categoría requerida"),
+        ("Obj,Aula,2026-03-02,D,Herramientas,lost,9", "categoría desconocida"),
+        ("Obj,Aula,2026-03-02,D,keys,,9", "estado requerido"),
+        ("Obj,Aula,2026-03-02,D,keys,archivado,9", "estado desconocido"),
+        ("Obj,Aula,2026-03-02,D,keys,lost,", "contacto requerido"),
+        ("Obj,Aula,2026-03-02,D,keys,lost," + "c" * 121, "contacto demasiado largo"),
     ],
 )
 def test_invalid_rows_are_skipped_with_a_reason_and_valid_rows_still_import(maria, maria_user, row, reason):
     content = _csv(
         "name,location,event_date,description,category,status,contact",
-        "Bueno,Aula,2026-03-02,ok,keys,lost,",
+        "Bueno,Aula,2026-03-02,ok,keys,lost,999",
         row,
     )
 
@@ -552,7 +556,7 @@ def test_invalid_rows_are_skipped_with_a_reason_and_valid_rows_still_import(mari
 
 
 def test_future_date_is_rejected_relative_to_today(maria, maria_user):
-    response = _upload(maria, _csv(BASE, f"Futuro,Aula,{_tomorrow()}", f"Hoy,Aula,{today_local().isoformat()}"))
+    response = _upload(maria, _csv(BASE, f"Futuro,Aula,{_tomorrow()},Desc,keys,lost,999", f"Hoy,Aula,{today_local().isoformat()},Desc,keys,lost,999"))
 
     assert "fila 2 (fecha futura)" in _text(response)
     assert [i.name for i in _imported(maria_user)] == ["Hoy"]
@@ -561,14 +565,14 @@ def test_future_date_is_rejected_relative_to_today(maria, maria_user):
 def test_future_date_in_day_first_format_is_rejected(maria):
     tomorrow = today_local() + timedelta(days=1)
 
-    response = _upload(maria, _csv(BASE, f"Futuro,Aula,{tomorrow.strftime('%d/%m/%Y')}"))
+    response = _upload(maria, _csv(BASE, f"Futuro,Aula,{tomorrow.strftime('%d/%m/%Y')},Desc,keys,lost,999"))
 
     assert "fila 2 (fecha futura)" in _text(response)
     assert Item.query.count() == 0
 
 
 def test_boundary_lengths_are_accepted(maria, maria_user):
-    content = _csv("name,location,event_date,description,contact", f"{'n' * 120},{'l' * 120},2026-03-02,{'d' * 500},{'c' * 120}")
+    content = _csv(BASE, f"{'n' * 120},{'l' * 120},2026-03-02,{'d' * 500},keys,lost,{'c' * 120}")
 
     response = _upload(maria, content)
 
@@ -577,7 +581,7 @@ def test_boundary_lengths_are_accepted(maria, maria_user):
 
 
 def test_skipped_rows_report_spreadsheet_row_numbers_with_blank_lines_counted(maria):
-    response = _upload(maria, f"{BASE}\nBueno,Aula,2026-03-02\n\nMalo,Aula,hoy\n,Aula,2026-03-02\n")
+    response = _upload(maria, f"{BASE}\nBueno,Aula,2026-03-02,Desc,keys,lost,999\n\nMalo,Aula,hoy,Desc,keys,lost,999\n,Aula,2026-03-02,Desc,keys,lost,999\n")
 
     html = _text(response)
     assert "fila 4 (fecha inválida)" in html
@@ -586,7 +590,7 @@ def test_skipped_rows_report_spreadsheet_row_numbers_with_blank_lines_counted(ma
 
 
 def test_skipped_report_lists_at_most_five_reasons_then_the_remainder(maria, maria_user):
-    lines = [BASE, "Bueno,Aula,2026-03-02"] + [f"Malo {n},Aula,hoy" for n in range(7)]
+    lines = [BASE, "Bueno,Aula,2026-03-02,Desc,keys,lost,999"] + [f"Malo {n},Aula,hoy,Desc,keys,lost,999" for n in range(7)]
 
     response = _upload(maria, _csv(*lines))
     html = _text(response)
@@ -601,7 +605,7 @@ def test_skipped_report_lists_at_most_five_reasons_then_the_remainder(maria, mar
 
 
 def test_import_with_no_valid_rows_warns_and_stays_on_the_import_page(maria, maria_user):
-    response = _upload(maria, _csv(BASE, "Malo,Aula,hoy"))
+    response = _upload(maria, _csv(BASE, "Malo,Aula,hoy,Desc,keys,lost,999"))
 
     html = _text(response)
     assert response.request.path == "/import/csv"
@@ -640,7 +644,7 @@ def test_import_rejects_an_empty_file(maria):
 
 
 def test_import_rejects_more_than_2000_rows_without_importing_any(maria):
-    lines = [BASE] + [f"Objeto {n},Aula,2026-03-02" for n in range(2001)]
+    lines = [BASE] + [f"Objeto {n},Aula,2026-03-02,Desc,keys,lost,999" for n in range(2001)]
 
     response = _upload(maria, _csv(*lines))
 
@@ -649,7 +653,7 @@ def test_import_rejects_more_than_2000_rows_without_importing_any(maria):
 
 
 def test_import_accepts_exactly_2000_rows(maria, maria_user):
-    lines = [BASE] + [f"Objeto {n},Aula,2026-03-02" for n in range(2000)]
+    lines = [BASE] + [f"Objeto {n},Aula,2026-03-02,Desc,keys,lost,999" for n in range(2000)]
 
     response = _upload(maria, _csv(*lines))
 
@@ -658,14 +662,14 @@ def test_import_accepts_exactly_2000_rows(maria, maria_user):
 
 
 def test_row_cap_ignores_blank_lines(maria):
-    lines = [BASE] + ["Objeto,Aula,2026-03-02"] * 5 + [""] * 3000
+    lines = [BASE] + ["Objeto,Aula,2026-03-02,Desc,keys,lost,999"] * 5 + [""] * 3000
 
     response = _upload(maria, _csv(*lines))
 
     assert "Se importaron 5 reportes." in _text(response)
 
 
-@pytest.mark.parametrize("payload", [b"name\n\x00\x01\x02", f"{BASE}\nTornillo,Aula,2026-03-02\n".encode("utf-16")])
+@pytest.mark.parametrize("payload", [b"name\n\x00\x01\x02", f"{BASE}\nTornillo,Aula,2026-03-02,Desc,keys,lost,999\n".encode("utf-16")])
 def test_import_rejects_binary_or_utf16_files(maria, payload):
     response = _upload(maria, payload)
 
@@ -674,7 +678,7 @@ def test_import_rejects_binary_or_utf16_files(maria, payload):
 
 
 def test_import_rejects_oversized_csv_fields(maria):
-    response = _upload(maria, f"{BASE}\n" + "x" * 200000 + ",Aula,2026-03-02\n")
+    response = _upload(maria, f"{BASE}\n" + "x" * 200000 + ",Aula,2026-03-02,Desc,keys,lost,999\n")
 
     assert READ_ERROR in _text(response)
     assert Item.query.count() == 0
@@ -704,7 +708,7 @@ def test_database_failure_rolls_back_every_row_and_reports_it(maria, monkeypatch
 
     with monkeypatch.context() as patch:
         patch.setattr(db.session, "commit", boom)
-        response = _upload(maria, _csv(BASE, "Uno,Aula,2026-03-02", "Dos,Aula,2026-03-02", "Tres,Aula,2026-03-02"))
+        response = _upload(maria, _csv(BASE, "Uno,Aula,2026-03-02,Desc,keys,lost,999", "Dos,Aula,2026-03-02,Desc,keys,lost,999", "Tres,Aula,2026-03-02,Desc,keys,lost,999"))
     db.session.rollback()
 
     assert "No se pudo completar la importación. No se guardó ningún reporte." in _text(response)
@@ -721,7 +725,7 @@ def test_valid_rows_are_inserted_in_a_single_commit(maria, monkeypatch):
 
     with monkeypatch.context() as patch:
         patch.setattr(db.session, "commit", counting_commit)
-        _upload(maria, _csv(BASE, "Uno,Aula,2026-03-02", "Dos,Aula,2026-03-02", "Tres,Aula,2026-03-02"))
+        _upload(maria, _csv(BASE, "Uno,Aula,2026-03-02,Desc,keys,lost,999", "Dos,Aula,2026-03-02,Desc,keys,lost,999", "Tres,Aula,2026-03-02,Desc,keys,lost,999"))
 
     assert len(commits) == 1
     assert Item.query.count() == 3
@@ -733,7 +737,7 @@ def test_import_requires_a_csrf_token(csrf_app, make_csrf_user, csrf_token):
     client = csrf_app.test_client()
     token = csrf_token(client, "/auth/login")
     client.post("/auth/login", data={"username": "maria", "password": "password123", "csrf_token": token})
-    content = f"{BASE}\nUno,Aula,2026-03-02\n".encode()
+    content = f"{BASE}\nUno,Aula,2026-03-02,Desc,keys,lost,999\n".encode()
 
     rejected = client.post(
         "/import/csv", data={"file": (BytesIO(content), "x.csv")}, content_type="multipart/form-data"
@@ -751,7 +755,7 @@ def test_import_requires_a_csrf_token(csrf_app, make_csrf_user, csrf_token):
 
 
 def test_anonymous_import_cannot_create_reports(browser_for):
-    response = _upload(browser_for(), _csv(BASE, "Uno,Aula,2026-03-02"), follow=False)
+    response = _upload(browser_for(), _csv(BASE, "Uno,Aula,2026-03-02,Desc,keys,lost,999"), follow=False)
 
     assert response.status_code == 302
     assert _location_path(response) == "/auth/login"

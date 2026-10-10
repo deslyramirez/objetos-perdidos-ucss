@@ -172,7 +172,8 @@
             <a href="{{ url_for('main.edit', item_id=item.id) }}" class="btn btn-secondary">
               <i class="bi bi-pencil" aria-hidden="true"></i> Editar
             </a>
-            {% if admin_view %}
+            {% set direct_delete = admin_view or not item.is_approved %}
+            {% if direct_delete %}
             {{ delete_form(url_for('main.delete', item_id=item.id), 'Eliminar', '¿Desea eliminar el reporte «' ~ item.name ~ '»? Esta acción no se puede deshacer.', 'md') }}
             {% elif item.deletion_requested %}
             <form method="post" action="{{ url_for('main.cancel_deletion', item_id=item.id) }}" class="inline-block">
@@ -183,12 +184,12 @@
             </form>
             {% endif %}
           </div>
-          {% if not admin_view and not item.deletion_requested %}
+          {% if not direct_delete and not item.deletion_requested %}
           <details class="delete-request mt-4">
             <summary class="btn btn-danger"><i class="bi bi-trash3" aria-hidden="true"></i> Solicitar eliminación</summary>
             <form method="post" action="{{ url_for('main.delete', item_id=item.id) }}" class="delete-request__form">
               {{ csrf_field() }}
-              <p>El administrador recibirá su solicitud y decidirá si desactiva el reporte o lo elimina.</p>
+              <p>Su reporte ya está publicado. El administrador recibirá su solicitud y decidirá si lo desactiva o lo elimina.</p>
               <label class="form-label" for="deletion-reason">Motivo (opcional)</label>
               <input id="deletion-reason" class="form-input" name="reason" maxlength="300" placeholder="Ej.: ya lo recuperé, lo publiqué dos veces…">
               <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-send" aria-hidden="true"></i> Enviar solicitud</button>

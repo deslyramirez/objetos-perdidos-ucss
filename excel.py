@@ -282,25 +282,16 @@ def _summary_sheet(ws, items, subtitle):
 # IMPORT TEMPLATE
 # -----------------------------
 def build_import_template(today):
-    """Template with a ready-to-fill «Reportes» sheet (dropdowns and date checks) and instructions."""
+    """Clean template: a «Reportes» sheet with dropdowns and date checks. Every column is
+    required; the instructions are on the system's Importar page."""
     wb = Workbook()
     ws = wb.active
     ws.title = "Reportes"
     ws.sheet_view.showGridLines = False
     last = len(IMPORT_COLUMNS)
 
-    _banner(
-        ws,
-        "Plantilla para importar reportes",
-        "Escriba un objeto por fila desde la fila 5. Las columnas con fondo oscuro marcado con * son "
-        "obligatorias. No cambie los títulos de la fila 4. Vea la hoja «Instrucciones».",
-        last,
-    )
+    _banner(ws, "Plantilla para importar reportes", SYSTEM_NAME, last)
     _header(ws, TEMPLATE_HEADER_ROW, IMPORT_COLUMNS)
-    for position in (1, 2, 3):  # required columns
-        cell = ws.cell(row=TEMPLATE_HEADER_ROW, column=position)
-        cell.value = f"{cell.value} *"
-        cell.fill = TITLE_FILL
 
     first = TEMPLATE_HEADER_ROW + 1
     last_row = TEMPLATE_HEADER_ROW + TEMPLATE_ROWS
@@ -314,92 +305,35 @@ def build_import_template(today):
         ws.cell(row=row, column=3).number_format = DATE_FORMAT
         ws.cell(row=row, column=3).alignment = CENTER
 
-    def dropdown(values, column, title, prompt):
-        validation = DataValidation(
-            type="list", formula1='"' + ",".join(values) + '"', allow_blank=True,
-            showErrorMessage=True, errorTitle=title, error=f"Elija un valor de la lista: {', '.join(values)}.",
-            showInputMessage=True, promptTitle=title, prompt=prompt,
-        )
+    def check(validation, column):
         ws.add_data_validation(validation)
         letter = get_column_letter(column)
         validation.add(f"{letter}{first}:{letter}{last_row}")
 
-    dropdown(list(CATEGORY_LABELS.values()), 5, "Categoría", "Elija la categoría (opcional).")
-    dropdown(list(STATUS_LABELS.values()), 6, "Estado", "Vacío = Perdido.")
+    def dropdown(values, column, title):
+        check(DataValidation(
+            type="list", formula1='"' + ",".join(values) + '"', allow_blank=False,
+            showErrorMessage=True, errorTitle=title, error=f"Elija un valor de la lista: {', '.join(values)}.",
+        ), column)
 
-    dates = DataValidation(
+    dropdown(list(CATEGORY_LABELS.values()), 5, "Categoría")
+    dropdown(list(STATUS_LABELS.values()), 6, "Estado")
+    check(DataValidation(
         type="date", operator="between", formula1="DATE(2000,1,1)",
-        formula2=f"DATE({today.year},{today.month},{today.day})",
+        formula2=f"DATE({today.year},{today.month},{today.day})", allow_blank=False,
         showErrorMessage=True, errorTitle="Fecha del suceso",
         error="Escriba una fecha válida (DD/MM/AAAA) que no sea posterior a hoy.",
-        showInputMessage=True, promptTitle="Fecha del suceso", prompt="Formato DD/MM/AAAA. Obligatoria.",
-    )
-    ws.add_data_validation(dates)
-    dates.add(f"C{first}:C{last_row}")
-
+    ), 3)
     for column, limit in ((1, 120), (2, 120), (4, 500), (7, 120)):
-        letter = get_column_letter(column)
-        length = DataValidation(
-            type="textLength", operator="lessThanOrEqual", formula1=str(limit), allow_blank=True,
+        check(DataValidation(
+            type="textLength", operator="lessThanOrEqual", formula1=str(limit), allow_blank=False,
             showErrorMessage=True, errorTitle="Texto demasiado largo", error=f"Máximo {limit} caracteres.",
-        )
-        ws.add_data_validation(length)
-        length.add(f"{letter}{first}:{letter}{last_row}")
+        ), column)
 
     ws.freeze_panes = f"A{first}"
     ws.print_area = f"A1:{get_column_letter(last)}{TEMPLATE_HEADER_ROW + 40}"
     _print_setup(ws, TEMPLATE_HEADER_ROW)
-    _instructions_sheet(wb.create_sheet("Instrucciones"))
-    wb.active = 0
     return _save(wb)
-
-
-def _instructions_sheet(ws):
-    ws.sheet_view.showGridLines = False
-    ws.column_dimensions["A"].width = 3
-    widths = {"B": 22, "C": 14, "D": 70}
-    for letter, width in widths.items():
-        ws.column_dimensions[letter].width = width
-    _banner(ws, "Cómo llenar la plantilla", "Guarde el archivo como .xlsx y súbalo en «Importar».", 4)
-
-    rows = [
-        ("Objeto", "Sí", "Nombre del objeto. Hasta 120 caracteres."),
-        ("Lugar", "Sí", "Dónde se perdió o se encontró. Hasta 120 caracteres."),
-        ("Fecha del suceso", "Sí", "DD/MM/AAAA (15/03/2026). No puede ser posterior a hoy."),
-        ("Descripción", "No", "Detalles que ayuden a reconocerlo. Hasta 500 caracteres."),
-        ("Categoría", "No", "Elija de la lista: " + ", ".join(CATEGORY_LABELS.values()) + ". Vacía = sin categoría."),
-        ("Estado", "No", "Elija de la lista: " + ", ".join(STATUS_LABELS.values()) + ". Vacío = Perdido."),
-        ("Contacto", "No", "Correo o teléfono. Hasta 120 caracteres."),
-    ]
-    header = 4
-    for column, text in enumerate(("Columna", "Obligatoria", "Qué escribir"), start=2):
-        cell = ws.cell(row=header, column=column, value=text)
-        cell.font = HEADER_FONT
-        cell.fill = HEADER_FILL
-        cell.alignment = CENTER
-        cell.border = BORDER
-    for offset, values in enumerate(rows, start=1):
-        for column, value in enumerate(values, start=2):
-            cell = ws.cell(row=header + offset, column=column, value=value)
-            cell.border = BORDER
-            cell.alignment = LEFT if column != 3 else CENTER
-            if offset % 2 == 0:
-                cell.fill = PatternFill("solid", fgColor=ZEBRA)
-        if values[1] == "Sí":
-            ws.cell(row=header + offset, column=3).font = Font(bold=True, color=TEAL_DARK)
-
-    notes_row = header + len(rows) + 2
-    ws.cell(row=notes_row, column=2, value="Tenga en cuenta").font = Font(bold=True, size=12, color=TEAL_DARK)
-    notes = [
-        "Las filas vacías se ignoran; las filas con errores se omiten y se indican al terminar.",
-        "Los reportes importados quedan publicados a nombre del administrador.",
-        "Las fotografías no se importan: puede agregarlas después con «Editar».",
-        "También puede importar un Excel exportado por el sistema o un CSV con los mismos títulos.",
-    ]
-    for offset, note in enumerate(notes, start=1):
-        cell = ws.cell(row=notes_row + offset, column=2, value=f"• {note}")
-        ws.merge_cells(start_row=notes_row + offset, start_column=2, end_row=notes_row + offset, end_column=4)
-        cell.alignment = LEFT
 
 
 # -----------------------------

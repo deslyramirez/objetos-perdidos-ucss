@@ -122,15 +122,16 @@ def test_export_and_template_are_for_the_administrator_only(carlos):
 # --- template -----------------------------------------------------------------
 
 
-def test_template_has_titles_dropdowns_and_instructions(admin):
+def test_template_is_a_clean_sheet_with_titles_and_dropdowns(admin):
     response = admin.get("/import/plantilla")
 
     assert response.headers["Content-Disposition"] == "attachment; filename=plantilla_importar_reportes.xlsx"
     wb = _workbook(response)
-    assert wb.sheetnames == ["Reportes", "Instrucciones"]
+    # The instructions live on the Importar page, not in the file.
+    assert wb.sheetnames == ["Reportes"]
     sheet = wb["Reportes"]
     titles = [cell.value for cell in sheet[HEADER_ROW]]
-    assert titles == ["Objeto *", "Lugar *", "Fecha del suceso *", "Descripción", "Categoría", "Estado", "Contacto"]
+    assert titles == ["Objeto", "Lugar", "Fecha del suceso", "Descripción", "Categoría", "Estado", "Contacto"]
     formulas = [validation.formula1 for validation in sheet.data_validations.dataValidation]
     assert any("Electrónica" in (formula or "") for formula in formulas)
     assert any("Perdido,Encontrado,Entregado" in (formula or "") for formula in formulas)
@@ -140,23 +141,27 @@ def test_a_filled_template_imports(admin):
     wb = load_workbook(BytesIO(admin.get("/import/plantilla").get_data()))
     sheet = wb["Reportes"]
     sheet["A5"], sheet["B5"], sheet["C5"] = "Mochila negra", "Aula 101", date(2026, 3, 4)
-    sheet["E5"], sheet["F5"], sheet["G5"] = "Mochilas y útiles", "Encontrado", "999 000 111"
+    sheet["D5"], sheet["E5"], sheet["F5"], sheet["G5"] = "Con cuaderno", "Mochilas y útiles", "Encontrado", "999 000 111"
     sheet["A6"], sheet["B6"], sheet["C6"] = "Sin fecha", "Patio", None
+    sheet["D6"], sheet["E6"], sheet["F6"], sheet["G6"] = "Azul", "Otros", "Perdido", "999"
+    sheet["A7"], sheet["B7"], sheet["C7"] = "Sin contacto", "Patio", date(2026, 3, 4)
+    sheet["D7"], sheet["E7"], sheet["F7"] = "Azul", "Otros", "Perdido"
     buffer = BytesIO()
     wb.save(buffer)
 
     html = _text(_upload(admin, buffer.getvalue()))
 
     assert "Se importó 1 reporte." in html
-    assert "fila 6 (fecha inválida)" in html
+    assert "fila 6 (fecha inválida)" in html and "fila 7 (contacto requerido)" in html
     item = Item.query.one()
     assert (item.name, item.location, item.event_date) == ("Mochila negra", "Aula 101", date(2026, 3, 4))
+    assert item.description == "Con cuaderno"
     assert (item.category, item.status, item.contact) == ("bags", "found", "999 000 111")
     assert item.approval == "approved"
 
 
 def test_an_exported_file_can_be_imported_again(admin, carlos, make_item):
-    make_item(_user("carlos"), name="Paraguas", category="other", status="returned")
+    make_item(_user("carlos"), name="Paraguas", category="other", status="returned", description="Negro", contact="999")
     exported = admin.get("/export/excel").get_data()
     Item.query.delete()
     db.session.commit()
@@ -170,8 +175,8 @@ def test_an_exported_file_can_be_imported_again(admin, carlos, make_item):
 
 def test_a_plain_workbook_with_spanish_titles_imports(admin):
     wb = Workbook()
-    wb.active.append(["objeto", "LUGAR", "Fecha"])
-    wb.active.append(["Celular", "Biblioteca", "15/03/2026"])
+    wb.active.append(["objeto", "LUGAR", "Fecha", "descripcion", "Categoria", "ESTADO", "contacto"])
+    wb.active.append(["Celular", "Biblioteca", "15/03/2026", "Funda roja", "Electrónica", "Perdido", "999"])
     buffer = BytesIO()
     wb.save(buffer)
 
@@ -186,7 +191,10 @@ def test_a_broken_xlsx_is_rejected(admin):
 
 
 def test_a_csv_with_spanish_titles_imports(admin):
-    content = "Objeto;Lugar;Fecha del suceso;Categoría\nLlaves;Patio;2026-03-02;Llaves\n".encode("utf-8")
+    content = (
+        "Objeto;Lugar;Fecha del suceso;Descripción;Categoría;Estado;Contacto\n"
+        "Llaves;Patio;2026-03-02;Tres llaves;Llaves;Encontrado;999\n"
+    ).encode("utf-8")
 
     assert "Se importó 1 reporte." in _text(_upload(admin, content, "datos.csv"))
     assert Item.query.one().category == "keys"
