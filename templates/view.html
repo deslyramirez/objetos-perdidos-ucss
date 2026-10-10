@@ -44,7 +44,6 @@
           {% if admin_view %}
           <div class="admin-tools mt-3">
             <span class="admin-badge"><i class="bi bi-shield-check" aria-hidden="true"></i> Administrador</span>
-            {% if flag_count %}<span class="text-sm"><i class="bi bi-flag-fill" aria-hidden="true"></i> {{ flag_count }} {{ 'reporte' if flag_count == 1 else 'reportes' }} de la comunidad</span>{% endif %}
             {% if not item.is_approved %}
             <form method="post" action="{{ url_for('admin.approve', item_id=item.id) }}">
               {{ csrf_field() }}<input type="hidden" name="next" value="{{ url_for('main.view', item_id=item.id) }}">
@@ -188,24 +187,6 @@
           </section>
           {% endif %}
 
-          {% if flag_form is defined %}
-          <div class="flag-box mt-4">
-            {% if my_flag %}
-            <p class="flag-box__done"><i class="bi bi-flag-fill" aria-hidden="true"></i> Ya reportó esta publicación ({{ flag_reasons.get(my_flag.reason, my_flag.reason)|lower }}). Gracias por avisar.</p>
-            {% else %}
-            <details{% if flag_form.errors %} open{% endif %}>
-              <summary class="flag-box__toggle"><i class="bi bi-flag" aria-hidden="true"></i> Reportar publicación</summary>
-              <form method="post" action="{{ url_for('main.flag', item_id=item.id) }}" class="mt-3" novalidate>
-                {{ flag_form.hidden_tag() }}
-                <p class="text-sm text-slate-600 mb-3">Avise si es falsa, está repetida o es inapropiada. El administrador la revisará.</p>
-                {{ field(flag_form.reason) }}
-                {{ field(flag_form.comment, rows=2, maxlength=300, placeholder='Opcional: cuéntenos qué está mal.') }}
-                <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-flag" aria-hidden="true"></i> Enviar reporte</button>
-              </form>
-            </details>
-            {% endif %}
-          </div>
-          {% endif %}
           {% endif %}
         </div>
 

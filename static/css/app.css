@@ -2510,13 +2510,6 @@ body.app-shell .app-sidebar .app-nav-link.is-active::before { left: -.5rem; }
 .msg--mine .inline-edit__form .btn-primary { background: #fff; color: #0d7180; }
 
 
-/* Community flags ("Reportar publicación"). */
-.flag-box { padding: .7rem .9rem; border: 1px dashed #e7c3b6; border-radius: .9rem; background: #fffaf8; }
-.flag-box__toggle { display: inline-flex; align-items: center; gap: .4rem; list-style: none; color: #a8432a; font-size: .85rem; font-weight: 700; cursor: pointer; }
-.flag-box__toggle::-webkit-details-marker { display: none; }
-.flag-box__toggle:hover { text-decoration: underline; }
-.flag-box__done { display: flex; align-items: center; gap: .4rem; color: #7a5a4f; font-size: .85rem; }
-
 /* Administrator and moderation. */
 .admin-badge { display: inline-flex; align-items: center; gap: .3rem; margin-top: .35rem; padding: .15rem .55rem; border-radius: 999px; background: #fff4e5; color: #9a5b00; font-size: .72rem; font-weight: 800; }
 .app-user-menu__head .admin-badge { display: flex; width: fit-content; }
@@ -2530,7 +2523,6 @@ body.app-shell .app-sidebar .app-nav-link.is-active::before { left: -.5rem; }
 .approval--rejected { background: #fdecec; color: #a52235; }
 
 .chip-row { display: flex; flex-wrap: wrap; gap: .5rem; }
-.kind--flag { background: #fdecec; color: #a52235; }
 .moderation-list { display: grid; gap: .8rem; }
 .moderation-card { display: flex; gap: 1rem; padding: 1rem; border: 1px solid #dce9ee; border-radius: 1rem; background: #fff; }
 .moderation-card__thumb { width: 6rem; height: 6rem; font-size: 2rem; }
@@ -2540,7 +2532,6 @@ body.app-shell .app-sidebar .app-nav-link.is-active::before { left: -.5rem; }
 .moderation-card__meta { color: var(--color-slate-600); font-size: .82rem; }
 .moderation-card__desc { color: var(--color-slate-700); font-size: .88rem; }
 .moderation-card__actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-top: .35rem; }
-.flag-list { display: grid; gap: .25rem; padding: .5rem .7rem; border-radius: .6rem; background: #fff6f4; color: #7a3b2e; font-size: .82rem; }
 @media (max-width: 640px) {
   .moderation-card { flex-direction: column; }
   .moderation-card__thumb { width: 100%; height: 9rem; }

@@ -101,14 +101,6 @@ def default_conversation_kind(status):
     return {"lost": "finder", "found": "owner"}.get(status, "question")
 
 
-# Community moderation: anyone can flag someone else's report once.
-FLAG_REASONS = {
-    "fake": "Es falso o engañoso",
-    "duplicate": "Está repetido",
-    "offensive": "Contenido ofensivo o inapropiado",
-    "other": "Otro motivo",
-}
-
 # Moderation: new reports wait until the administrator approves them.
 APPROVAL_LABELS = {
     "pending": "En revisión",

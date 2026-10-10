@@ -14,9 +14,9 @@ from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
-from domain import APPROVAL_LABELS, FLAG_REASONS
+from domain import APPROVAL_LABELS
 from extensions import db
-from models import Flag, Item, User
+from models import Item, User
 
 admin = Blueprint("admin", __name__)
 
@@ -116,20 +116,10 @@ def pending_count():
     return db.session.query(func.count(Item.id)).filter(Item.approval == "pending").scalar()
 
 
-def flagged_count():
-    """Published reports with at least one community flag."""
-    return (
-        db.session.query(func.count(func.distinct(Flag.item_id)))
-        .join(Item, Flag.item_id == Item.id)
-        .filter(Item.approval == "approved")
-        .scalar()
-    )
-
-
 @admin.app_context_processor
 def inject_admin():
     if is_admin(current_user):
-        return {"is_admin": True, "moderation_count": pending_count() + flagged_count()}
+        return {"is_admin": True, "moderation_count": pending_count()}
     return {"is_admin": False, "moderation_count": 0}
 
 
@@ -138,7 +128,6 @@ def inject_admin():
 # -----------------------------
 TABS = {
     "pendientes": "Pendientes",
-    "reportadas": "Reportadas",
     "desaprobadas": "Desaprobadas",
 }
 
@@ -150,28 +139,14 @@ def moderation():
     if tab not in TABS:
         tab = "pendientes"
 
-    flag_counts = dict(
-        db.session.query(Flag.item_id, func.count(Flag.id)).group_by(Flag.item_id).all()
-    )
     base = Item.query.options(joinedload(Item.user))
     if tab == "pendientes":
         items = base.filter(Item.approval == "pending").order_by(Item.created_at, Item.id).all()
-    elif tab == "reportadas":
-        ids = list(flag_counts)
-        items = base.filter(Item.id.in_(ids), Item.approval == "approved").all() if ids else []
-        items.sort(key=lambda item: (-flag_counts.get(item.id, 0), item.id))
     else:
         items = base.filter(Item.approval == "rejected").order_by(Item.id.desc()).all()
 
-    flags_by_item = {}
-    if tab == "reportadas" and items:
-        flags = Flag.query.filter(Flag.item_id.in_([i.id for i in items])).order_by(Flag.created_at)
-        for flag in flags:
-            flags_by_item.setdefault(flag.item_id, []).append(flag)
-
     tab_counts = {
         "pendientes": pending_count(),
-        "reportadas": flagged_count(),
         "desaprobadas": db.session.query(func.count(Item.id))
         .filter(Item.approval == "rejected")
         .scalar(),
@@ -182,9 +157,6 @@ def moderation():
         tabs=TABS,
         tab_counts=tab_counts,
         items=items,
-        flag_counts=flag_counts,
-        flags_by_item=flags_by_item,
-        flag_reasons=FLAG_REASONS,
         approval_labels=APPROVAL_LABELS,
         reason_max=REJECTION_REASON_MAX,
     )
@@ -224,15 +196,5 @@ def reject(item_id):
     reason = (request.form.get("reason") or "").strip()[:REJECTION_REASON_MAX]
     item.approval = "rejected"
     item.rejection_reason = reason or None
-    Flag.query.filter_by(item_id=item.id).delete()
     _save(f"«{item.name}» fue desaprobado y ya no es visible para la comunidad.", "info")
     return _back("pendientes")
-
-
-@admin.route("/item/<int:item_id>/descartar-reportes", methods=["POST"])
-@admin_required
-def dismiss_flags(item_id):
-    item = db.get_or_404(Item, item_id)
-    Flag.query.filter_by(item_id=item.id).delete()
-    _save(f"Se descartaron los reportes de «{item.name}»; sigue publicado.", "info")
-    return _back("reportadas")

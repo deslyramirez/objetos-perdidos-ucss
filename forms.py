@@ -19,7 +19,7 @@ from wtforms.validators import (
     Optional,
     ValidationError,
 )
-from domain import CATEGORY_LABELS, CONVERSATION_KINDS, DEFAULT_STATUS, FLAG_REASONS, STATUS_LABELS
+from domain import CATEGORY_LABELS, CONVERSATION_KINDS, DEFAULT_STATUS, STATUS_LABELS
 from models import User
 from utils import today_local
 
@@ -386,31 +386,3 @@ class ConversationKindForm(FlaskForm):
         if field.data not in CONVERSATION_KINDS:
             raise ValidationError("Seleccione un motivo válido.")
 
-
-FLAG_COMMENT_MAX = 300
-
-
-class FlagForm(FlaskForm):
-    reason = SelectField(
-        "Motivo",
-        choices=[("", "Seleccione un motivo")] + list(FLAG_REASONS.items()),
-        default="",
-        validate_choice=False,
-        validators=[DataRequired(message="Seleccione un motivo.")],
-    )
-    comment = TextAreaField(
-        "Comentario (opcional)",
-        filters=[_strip],
-        validators=[
-            Optional(),
-            Length(
-                max=FLAG_COMMENT_MAX,
-                message=f"El comentario no puede superar los {FLAG_COMMENT_MAX} caracteres.",
-            ),
-        ],
-    )
-    submit = SubmitField("Enviar reporte")
-
-    def validate_reason(self, field):
-        if field.data not in FLAG_REASONS:
-            raise ValidationError("Seleccione un motivo válido.")

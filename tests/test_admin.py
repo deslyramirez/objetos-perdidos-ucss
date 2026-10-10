@@ -1,11 +1,11 @@
-"""Administrator moderation, community flags and the administrator account."""
+"""Administrator moderation and the administrator account."""
 
 import pytest
 from sqlalchemy import create_engine, inspect
 
 from admin import create_admin_account, ensure_admin_from_env, ensure_moderation_columns
 from extensions import db
-from models import Conversation, Flag, Item, User
+from models import Conversation, Item, User
 
 
 def _text(response):
@@ -176,51 +176,15 @@ def test_admin_detail_page_has_approve_and_disapprove(admin, make_item, carlos):
     assert f'action="/admin/item/{item.id}/desaprobar"' in page
 
 
-# --- community flags ----------------------------------------------------------------
+# --- no community flags ---------------------------------------------------------------
 
 
-def test_users_can_flag_a_report_once_and_the_admin_sees_it(admin, maria, make_item, carlos):
-    item = make_item(_carlos(), name="Billetera")
-
-    maria.post(f"/item/{item.id}/flag", data={"reason": "fake", "comment": "No existe ese lugar"})
-    maria.post(f"/item/{item.id}/flag", data={"reason": "duplicate"})
-
-    assert Flag.query.count() == 1
-    assert "Ya reportó esta publicación" in _text(maria.get(f"/item/{item.id}"))
-    page = _text(admin.get("/admin/moderacion?tab=reportadas"))
-    assert "Billetera" in page and "Es falso o engañoso" in page and "No existe ese lugar" in page
-
-
-def test_flag_requires_a_valid_reason_and_is_not_for_own_reports(carlos, maria, make_item):
+def test_there_is_no_report_publication_button(maria, make_item, carlos):
     item = make_item(_carlos())
 
-    assert maria.post(f"/item/{item.id}/flag", data={"reason": "nada"}).status_code == 400
-    carlos.post(f"/item/{item.id}/flag", data={"reason": "fake"})
-    assert Flag.query.count() == 0
-    assert "Reportar publicación" not in _text(carlos.get(f"/item/{item.id}"))
-
-
-def test_admin_keeps_a_flagged_report_or_disapproves_it(admin, maria, make_item, carlos):
-    kept = make_item(_carlos(), name="Uno")
-    removed = make_item(_carlos(), name="Dos")
-    for item in (kept, removed):
-        maria.post(f"/item/{item.id}/flag", data={"reason": "offensive"})
-
-    admin.post(f"/admin/item/{kept.id}/descartar-reportes")
-    admin.post(f"/admin/item/{removed.id}/desaprobar")
-
-    assert Flag.query.count() == 0
-    assert db.session.get(Item, kept.id).approval == "approved"
-    assert db.session.get(Item, removed.id).approval == "rejected"
-
-
-def test_deleting_a_report_deletes_its_flags(carlos, maria, make_item):
-    item = make_item(_carlos())
-    maria.post(f"/item/{item.id}/flag", data={"reason": "fake"})
-
-    carlos.post(f"/delete/{item.id}")
-
-    assert Flag.query.count() == 0
+    assert "Reportar publicación" not in _text(maria.get(f"/item/{item.id}"))
+    assert maria.post(f"/item/{item.id}/flag", data={"reason": "fake"}).status_code in (404, 405)
+    assert "Reportadas" not in _text(carlos.get("/"))
 
 
 # --- administrator account ------------------------------------------------------------

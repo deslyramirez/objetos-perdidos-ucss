@@ -32,7 +32,6 @@ from domain import (
     CONVERSATION_KINDS,
     APPROVAL_LABELS,
     DEFAULT_STATUS,
-    FLAG_REASONS,
     LEGACY_CATEGORY_MAP,
     STATUS_LABELS,
     default_conversation_kind,
@@ -49,10 +48,9 @@ from forms import (
     AddItemForm,
     ContactForm,
     EditItemForm,
-    FlagForm,
 )
 from admin import admin_required, is_admin
-from models import Flag, Item, visible_items_filter
+from models import Item, visible_items_filter
 from utils import formato_numero, today_local
 
 bp = Blueprint("main", __name__, template_folder="templates")
@@ -309,26 +307,20 @@ def view(item_id):
     return render_item_view(item)
 
 
-def render_item_view(item, contact_form=None, flag_form=None):
-    """Render the report page; the forms carry errors back from messages.start and flag."""
+def render_item_view(item, contact_form=None):
+    """Render the report page; `contact_form` carries errors back from messages.start."""
     from messages import conversation_for, received_conversations, unread_by_conversation
 
     is_owner = item.user_id is not None and item.user_id == current_user.id
     admin_view = is_admin(current_user)
-    flag_count = Flag.query.filter_by(item_id=item.id).count()
     context = {
         "item": item,
         "is_owner": is_owner,
         "admin_view": admin_view,
-        "flag_count": flag_count,
         "approval_labels": APPROVAL_LABELS,
     }
     if not item.is_approved and not is_owner and not admin_view:
         return render_template("view_hidden.html", **context), 404
-    if not is_owner and item.is_approved:
-        context["my_flag"] = Flag.query.filter_by(item_id=item.id, user_id=current_user.id).first()
-        context["flag_form"] = flag_form or FlagForm()
-        context["flag_reasons"] = FLAG_REASONS
     if is_owner:
         received = received_conversations(item)
         context["received"] = received
@@ -453,43 +445,6 @@ def edit(item_id):
         return redirect(url_for("main.view", item_id=item.id))
 
     return render_template("edit.html", form=form, item=item)
-
-
-# -----------------------------
-# FLAG A REPORT ("REPORTAR PUBLICACIÓN", ANYONE BUT THE CREATOR, ONCE)
-# -----------------------------
-@bp.route("/item/<int:item_id>/flag", methods=["POST"])
-@login_required
-def flag(item_id):
-    item = db.get_or_404(Item, item_id)
-    back = redirect(url_for("main.view", item_id=item.id))
-    if item.user_id == current_user.id:
-        flash("No puede reportar su propia publicación.", "warning")
-        return back
-    if not item.is_approved:
-        abort(404)
-    if Flag.query.filter_by(item_id=item.id, user_id=current_user.id).first():
-        flash("Ya reportó esta publicación. Gracias por avisar.", "info")
-        return back
-
-    form = FlagForm()
-    if not form.validate_on_submit():
-        return render_item_view(item, flag_form=form), 400
-
-    db.session.add(
-        Flag(item_id=item.id, user_id=current_user.id, reason=form.reason.data,
-             comment=form.comment.data or None)
-    )
-    try:
-        db.session.commit()
-    except SQLAlchemyError:
-        db.session.rollback()
-        current_app.logger.exception("Could not flag report %s", item_id)
-        flash("No se pudo registrar el reporte. Intente nuevamente.", "danger")
-        return back
-
-    flash("Gracias por avisar. El administrador revisará la publicación.", "success")
-    return back
 
 
 # -----------------------------

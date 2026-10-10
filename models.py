@@ -138,23 +138,6 @@ class Message(db.Model):
     sender = db.relationship("User")
 
 
-# -----------------------------
-# COMMUNITY FLAGS ("Reportar publicación")
-# -----------------------------
-class Flag(db.Model):
-    __table_args__ = (db.UniqueConstraint("item_id", "user_id", name="uq_flag_item_user"),)
-
-    id = db.Column(db.Integer, primary_key=True)
-    item_id = db.Column(db.Integer, db.ForeignKey("item.id"), nullable=False, index=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    reason = db.Column(db.String(20), nullable=False)
-    comment = db.Column(db.String(300), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-
-    item = db.relationship("Item", backref=db.backref("flags", cascade="all, delete-orphan"))
-    user = db.relationship("User")
-
-
 def visible_items_filter(user=None):
     """Published reports, plus the user's own reports in any moderation state."""
     published = Item.approval == "approved"

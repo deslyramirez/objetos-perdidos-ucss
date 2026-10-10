@@ -1,6 +1,6 @@
 {#
   Administrator review queue. Context from admin.moderation:
-    tab, tabs, tab_counts, items, flag_counts, flags_by_item, flag_reasons, approval_labels, reason_max.
+    tab, tabs, tab_counts, items, approval_labels, reason_max.
 #}
 {% extends "base.html" %}
 {% from "_macros.html" import page_header, empty_state, status_badge, csrf_field, filter_chip, CATEGORY_ICONS %}
@@ -18,7 +18,6 @@
 {% if not items %}
   {% set texts = {
     'pendientes': ('No hay publicaciones pendientes.', 'Cuando un usuario registre un objeto, aparecerá aquí para que lo apruebe.'),
-    'reportadas': ('No hay publicaciones reportadas.', 'Si alguien usa «Reportar publicación», la verá aquí.'),
     'desaprobadas': ('No hay publicaciones desaprobadas.', 'Las publicaciones que desapruebe se listarán aquí.')
   } %}
   {{ empty_state(texts[tab][0], texts[tab][1], icon='bi-check2-all') }}
@@ -39,7 +38,6 @@
       <div class="inbox-row__top">
         <a class="moderation-card__title" href="{{ url_for('main.view', item_id=item.id) }}">{{ item.name }}</a>
         {{ status_badge(item.status) }}
-        {% if flag_counts.get(item.id) %}<span class="kind-badge kind--flag"><i class="bi bi-flag-fill" aria-hidden="true"></i>&nbsp;{{ flag_counts[item.id] }}</span>{% endif %}
       </div>
       <p class="moderation-card__meta">
         {{ item.category|categoria_label }} · {{ item.location or "Lugar no indicado" }} · {{ item.event_date|fecha }}
@@ -47,29 +45,15 @@
       </p>
       {% if item.description %}<p class="moderation-card__desc">{{ item.description|truncate(160) }}</p>{% endif %}
 
-      {% if tab == 'reportadas' %}
-      <ul class="flag-list">
-        {% for f in flags_by_item.get(item.id, []) %}
-        <li><i class="bi bi-flag" aria-hidden="true"></i> <strong>{{ flag_reasons.get(f.reason, f.reason) }}</strong> — {{ f.user.username if f.user else "—" }}{% if f.comment %}: «{{ f.comment }}»{% endif %}</li>
-        {% endfor %}
-      </ul>
-      {% endif %}
       {% if tab == 'desaprobadas' and item.rejection_reason %}
       <p class="moderation-card__desc"><strong>Motivo:</strong> {{ item.rejection_reason }}</p>
       {% endif %}
 
       <div class="moderation-card__actions">
-        {% if tab != 'reportadas' %}
         <form method="post" action="{{ url_for('admin.approve', item_id=item.id) }}">
           {{ csrf_field() }}<input type="hidden" name="next" value="{{ here }}">
           <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check2-circle" aria-hidden="true"></i> Aprobar</button>
         </form>
-        {% else %}
-        <form method="post" action="{{ url_for('admin.dismiss_flags', item_id=item.id) }}">
-          {{ csrf_field() }}<input type="hidden" name="next" value="{{ here }}">
-          <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-check2" aria-hidden="true"></i> Mantener publicado</button>
-        </form>
-        {% endif %}
         {% if tab != 'desaprobadas' %}
         <form method="post" action="{{ url_for('admin.reject', item_id=item.id) }}" class="admin-tools__reject">
           {{ csrf_field() }}<input type="hidden" name="next" value="{{ here }}">
