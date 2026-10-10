@@ -2403,3 +2403,28 @@ body.app-shell .app-sidebar .app-nav-link.is-active::before { left: -.5rem; }
 .app-sidebar .brand-product small { color: #fff; opacity: .85; }
 .app-sidebar__status,
 .app-sidebar__status p { color: #fff; }
+
+/* Autofill: same light field as the login screen (browsers paint it dark teal otherwise). */
+.auth-split--login .auth-card .form-input:-webkit-autofill,
+.auth-split--login .auth-card .form-input:-webkit-autofill:hover,
+.auth-split--login .auth-card .form-input:-webkit-autofill:focus,
+.auth-split--register .auth-card .form-input:-webkit-autofill,
+.auth-split--register .auth-card .form-input:-webkit-autofill:hover {
+  box-shadow: 0 0 0 1000px #f7fafb inset !important;
+  transition: background-color 9999s ease-out 0s;
+}
+.auth-split--register .auth-card .form-input:-webkit-autofill:focus {
+  box-shadow: 0 0 0 1000px #f7fafb inset, 0 0 0 .2rem rgba(13,151,164,.14) !important;
+}
+
+/* Show-password eye: always black, also on hover, focus and when pressed. */
+.password-toggle,
+.password-toggle:hover,
+.password-toggle:focus,
+.password-toggle[aria-pressed="true"],
+.auth-card .password-toggle,
+.auth-card .password-toggle:hover,
+.auth-split--login .auth-card .password-toggle,
+.auth-split--login .auth-card .password-toggle:hover,
+.auth-split--register .auth-card .password-toggle,
+.auth-split--register .auth-card .password-toggle:hover { color: #000 !important; }
