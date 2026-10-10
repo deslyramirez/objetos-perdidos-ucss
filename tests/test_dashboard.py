@@ -5,9 +5,11 @@ import json
 import re
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from io import BytesIO
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from openpyxl import load_workbook
 from sqlalchemy import event
 
 import dashboard as dashboard_module
@@ -327,22 +329,23 @@ def test_month_form_submits_mes_with_get_and_a_visible_button(maria):
 def test_export_button_carries_the_selected_month(maria):
     html = _get(maria, "2026-02")
 
-    link = re.search(r'<a[^>]*href="/export/csv\?mes=2026-02"[^>]*>(.*?)</a>', html, re.DOTALL)
+    link = re.search(r'<a[^>]*href="/export/excel\?mes=2026-02"[^>]*>(.*?)</a>', html, re.DOTALL)
     assert link is not None
-    assert "Exportar mes (CSV)" in link.group(1)
+    assert "Exportar mes (Excel)" in link.group(1)
     assert "btn-primary" in link.group(0)
 
 
 def test_export_link_downloads_the_monthly_file(maria, maria_user):
     _add_reports(maria_user, dict(day="2026-10-05", name="Paraguas"), dict(day="2026-09-05", name="Otro mes"))
     html = _get(maria, "2026-10")
-    href = re.search(r'href="(/export/csv\?mes=2026-10)"', html).group(1)
+    href = re.search(r'href="(/export/excel\?mes=2026-10)"', html).group(1)
 
     response = maria.get(href)
 
-    assert response.headers["Content-Disposition"] == "attachment; filename=objetos_2026-10.csv"
-    body = response.get_data().decode("utf-8-sig")
-    assert "Paraguas" in body and "Otro mes" not in body
+    assert response.headers["Content-Disposition"] == "attachment; filename=objetos_2026-10.xlsx"
+    sheet = load_workbook(BytesIO(response.get_data()))["Reportes"]
+    names = [row[2] for row in sheet.iter_rows(min_row=5, values_only=True)]
+    assert "Paraguas" in names and "Otro mes" not in names
 
 
 # --- KPIs ---------------------------------------------------------------------
@@ -851,7 +854,7 @@ def test_empty_month_shows_the_empty_state_and_hides_charts(maria, maria_user):
     assert CHART_URL not in html
     # Navigation, export and KPI cards stay available.
     assert _nav_href(html, "prev") == "/dashboard/?mes=2026-09"
-    assert "Exportar mes (CSV)" in body
+    assert "Exportar mes (Excel)" in body
     assert 'type="month"' in body
     assert _kpi(html, "total") == "0"
     assert _kpi(html, "delta") == "-1 respecto al mes anterior"

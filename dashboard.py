@@ -9,9 +9,9 @@ from flask_login import login_required
 from admin import admin_required
 from sqlalchemy import case, func
 
-from domain import CATEGORY_LABELS, month_bounds, parse_month
+from domain import CATEGORY_LABELS, SUMMARY_APPROVALS, month_bounds, parse_month
 from extensions import db
-from models import Item, visible_items_filter
+from models import Item
 from utils import MONTH_NAMES, today_local
 
 dashboard = Blueprint("dashboard", __name__)
@@ -51,7 +51,8 @@ def month_summary(year, month):
     previous_first, previous_next = (None, None)
     if previous_year >= 1:
         previous_first, previous_next = month_bounds(previous_year, previous_month)
-    visible = visible_items_filter()  # published reports only
+    # Published and deactivated reports: deactivating hides a report, it does not erase history.
+    visible = Item.approval.in_(SUMMARY_APPROVALS)
     period = Item.event_date >= first_day, Item.event_date < next_month, visible
     previous_period = None
     if previous_first is not None:

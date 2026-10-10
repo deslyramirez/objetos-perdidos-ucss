@@ -1,16 +1,69 @@
 {% extends "base.html" %}
 {% from "_macros.html" import page_header, csrf_field %}
-{% block title %}Importar CSV{% endblock %}
+{% block title %}Importar reportes{% endblock %}
 
 {% block content %}
 <div class="mx-auto max-w-5xl space-y-6 internal-page internal-page--import">
-  {{ page_header("Importar CSV", "Cargue varios reportes a la vez desde un archivo CSV.", "bi-upload") }}
+  {{ page_header("Importar reportes", "Cargue varios reportes a la vez desde la plantilla de Excel (o un CSV).", "bi-upload") }}
+
+  <ol class="import-steps" aria-label="Pasos para importar">
+    <li class="import-step">
+      <span class="import-step__num" aria-hidden="true">1</span>
+      <div>
+        <p class="import-step__title">Descargue la plantilla</p>
+        <p>Trae las columnas listas, listas desplegables para categoría y estado, y control de fechas.</p>
+        <a href="{{ url_for('main.import_template') }}" class="btn btn-primary btn-sm mt-2">
+          <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Descargar plantilla (.xlsx)
+        </a>
+      </div>
+    </li>
+    <li class="import-step">
+      <span class="import-step__num" aria-hidden="true">2</span>
+      <div>
+        <p class="import-step__title">Llénela en Excel</p>
+        <p>Un objeto por fila, desde la fila 5. «Objeto», «Lugar» y «Fecha del suceso» son obligatorias.</p>
+      </div>
+    </li>
+    <li class="import-step">
+      <span class="import-step__num" aria-hidden="true">3</span>
+      <div>
+        <p class="import-step__title">Súbala aquí abajo</p>
+        <p>Las filas con errores se omiten y se le indican al terminar; el resto se publica.</p>
+      </div>
+    </li>
+  </ol>
+
+  <section class="card" aria-labelledby="csv-upload-title">
+    <div class="card-header" id="csv-upload-title">Subir archivo</div>
+    <div class="card-body">
+      <form method="post" enctype="multipart/form-data">
+        {{ csrf_field() }}
+        <div class="upload-panel mb-5">
+          <div class="upload-panel__icon" aria-hidden="true"><i class="bi bi-file-earmark-spreadsheet"></i></div>
+          <div class="upload-panel__copy">
+            <label class="upload-panel__title" for="file">Selecciona tu archivo Excel o CSV</label>
+            <p>Plantilla .xlsx, Excel exportado por el sistema o CSV. Hasta {{ max_rows|formato_numero }} filas y 5 MB.</p>
+          </div>
+          <input type="file" id="file" name="file" class="form-input upload-panel__input"
+                 accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-upload" aria-hidden="true"></i> Importar archivo
+          </button>
+          <a href="{{ url_for('main.export_excel') }}" class="btn btn-secondary">
+            <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Descargar reportes (Excel)
+          </a>
+        </div>
+      </form>
+    </div>
+  </section>
 
   <section class="card" aria-labelledby="csv-format-title">
-    <div class="card-header" id="csv-format-title">Formato del archivo</div>
+    <div class="card-header" id="csv-format-title">Columnas del archivo</div>
     <div class="card-body space-y-4 text-sm text-slate-700">
       <p>
-        La primera fila debe contener los nombres de las columnas, escritos en inglés como se muestra abajo.
+        El sistema busca la fila de títulos (puede haber un título encima, como en la plantilla).
         Las columnas desconocidas se ignoran y el orden no importa.
       </p>
 
@@ -21,119 +74,61 @@
             <tr>
               <th scope="col">Columna</th>
               <th scope="col">Obligatoria</th>
-              <th scope="col">Contenido</th>
               <th scope="col">Valores permitidos</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td><code>name</code></td>
+              <td><strong>Objeto</strong> <code>name</code></td>
               <td>Sí</td>
-              <td>Nombre del objeto</td>
-              <td>Hasta 120 caracteres.</td>
+              <td>Nombre del objeto. Hasta 120 caracteres.</td>
             </tr>
             <tr>
-              <td><code>location</code></td>
+              <td><strong>Lugar</strong> <code>location</code></td>
               <td>Sí</td>
-              <td>Lugar donde se perdió o se encontró</td>
-              <td>Hasta 120 caracteres.</td>
+              <td>Dónde se perdió o se encontró. Hasta 120 caracteres.</td>
             </tr>
             <tr>
-              <td><code>event_date</code></td>
+              <td><strong>Fecha del suceso</strong> <code>event_date</code></td>
               <td>Sí</td>
-              <td>Fecha del suceso</td>
-              <td>AAAA-MM-DD (2026-03-15) o DD/MM/AAAA (15/03/2026). No puede ser posterior a hoy.</td>
+              <td>Fecha de Excel, AAAA-MM-DD (2026-03-15) o DD/MM/AAAA (15/03/2026). No puede ser posterior a hoy.</td>
             </tr>
             <tr>
-              <td><code>description</code></td>
+              <td><strong>Descripción</strong> <code>description</code></td>
               <td>No</td>
-              <td>Descripción</td>
               <td>Hasta 500 caracteres.</td>
             </tr>
             <tr>
-              <td><code>category</code></td>
+              <td><strong>Categoría</strong> <code>category</code></td>
               <td>No</td>
-              <td>Categoría</td>
               <td>
-                Puede escribir la clave o el nombre en español:
-                <ul class="mt-1 space-y-0.5">
-                  {% for key, label in categories.items() %}
-                  <li><code>{{ key }}</code> ({{ label }})</li>
-                  {% endfor %}
-                </ul>
+                {% for key, label in categories.items() %}{{ label }}{{ ", " if not loop.last }}{% endfor %}.
                 Si está vacía, el reporte queda sin categoría.
               </td>
             </tr>
             <tr>
-              <td><code>status</code></td>
+              <td><strong>Estado</strong> <code>status</code></td>
               <td>No</td>
-              <td>Estado del objeto</td>
               <td>
-                Puede escribir la clave o el nombre en español:
-                <ul class="mt-1 space-y-0.5">
-                  {% for key, label in statuses.items() %}
-                  <li><code>{{ key }}</code> ({{ label }})</li>
-                  {% endfor %}
-                </ul>
+                {% for key, label in statuses.items() %}{{ label }}{{ ", " if not loop.last }}{% endfor %}.
                 Si está vacío, se usa «Perdido».
               </td>
             </tr>
             <tr>
-              <td><code>contact</code></td>
+              <td><strong>Contacto</strong> <code>contact</code></td>
               <td>No</td>
-              <td>Correo o teléfono de contacto</td>
-              <td>Hasta 120 caracteres.</td>
+              <td>Correo o teléfono. Hasta 120 caracteres.</td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <div>
-        <p class="mb-1 font-medium text-slate-900">Ejemplo con comas</p>
-        <pre class="overflow-x-auto rounded-md border border-slate-200 bg-slate-50 p-3 text-xs">name,location,event_date,description,category,status,contact
-Llaves con llavero rojo,Biblioteca central,2026-03-15,Tres llaves y un llavero,keys,found,ana@universidad.edu
-Mochila azul,Cafetería,15/03/2026,Contiene un cuaderno,bags,lost,</pre>
-      </div>
-
-      <div>
-        <p class="mb-1 font-medium text-slate-900">Ejemplo con punto y coma</p>
-        <pre class="overflow-x-auto rounded-md border border-slate-200 bg-slate-50 p-3 text-xs">name;location;event_date;description;category;status;contact
-Calculadora científica;Aula 204;2026-03-12;Marca Casio;Electrónica;Perdido;
-Paraguas negro;Entrada principal;12/03/2026;;Otros;Entregado;</pre>
-      </div>
-
       <ul class="list-disc space-y-1 pl-5">
-        <li>El separador puede ser coma o punto y coma; se detecta automáticamente.</li>
-        <li>El archivo debe estar codificado en UTF-8 (el formato habitual al guardar como «CSV UTF-8» en Excel).</li>
-        <li>Máximo {{ max_rows|formato_numero }} filas y 5 MB por archivo.</li>
-        <li>Las filas con errores se omiten y se indican al terminar; el resto se importa.</li>
-        <li>Las fotografías no se importan. Todos los reportes quedan registrados a su nombre.</li>
+        <li>En un CSV los títulos pueden ir en español (como arriba) o en inglés (<code>name</code>, <code>location</code>…); el separador puede ser coma o punto y coma.</li>
+        <li>Guarde el CSV como «CSV UTF-8» para conservar tildes y eñes.</li>
+        <li>Las fotografías no se importan: puede agregarlas después con «Editar».</li>
+        <li>Los reportes importados quedan publicados a su nombre.</li>
       </ul>
-    </div>
-  </section>
-
-  <section class="card" aria-labelledby="csv-upload-title">
-    <div class="card-header" id="csv-upload-title">Subir archivo</div>
-    <div class="card-body">
-      <form method="post" enctype="multipart/form-data">
-        {{ csrf_field() }}
-        <div class="upload-panel mb-5">
-          <div class="upload-panel__icon" aria-hidden="true"><i class="bi bi-filetype-csv"></i></div>
-          <div class="upload-panel__copy">
-            <label class="upload-panel__title" for="file">Selecciona tu archivo CSV</label>
-            <p>Elige un archivo de hasta {{ max_rows|formato_numero }} filas y 5 MB.</p>
-          </div>
-          <input type="file" id="file" name="file" class="form-input upload-panel__input" accept=".csv,text/csv" required>
-        </div>
-        <div class="flex flex-wrap items-center gap-3">
-          <button type="submit" class="btn btn-primary">
-            <i class="bi bi-upload" aria-hidden="true"></i> Importar archivo
-          </button>
-          <a href="{{ url_for('main.export_csv') }}" class="btn btn-secondary">
-            <i class="bi bi-download" aria-hidden="true"></i> Descargar reportes
-          </a>
-        </div>
-      </form>
     </div>
   </section>
 </div>

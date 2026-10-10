@@ -31,8 +31,8 @@
   'reports': ('Centro de reportes', 'bi-collection', '#0d97a4'),
   'add': ('Nuevo reporte', 'bi-plus-circle', '#e0673f'),
   'dashboard': ('Panel mensual', 'bi-bar-chart-line', '#2a6f9a'),
-  'import': ('Importar CSV', 'bi-upload', '#c27a16'),
-  'export': ('Exportar CSV', 'bi-download', '#2f9e6e'),
+  'import': ('Importar', 'bi-upload', '#c27a16'),
+  'export': ('Exportar Excel', 'bi-file-earmark-excel', '#2f9e6e'),
   'messages': ('Mensajes', 'bi-chat-dots', '#7a4fb5'),
   'moderation': ('Moderación', 'bi-shield-check', '#b5651d'),
   'account': ('Mi cuenta', 'bi-person-circle', '#355a6e')
@@ -128,7 +128,7 @@
             <div class="app-sidebar__section">
                 <p class="app-sidebar__group">Datos</p>
                 {{ nav_link(url_for('main.import_csv'), 'import', section == 'import') }}
-                {{ nav_link(url_for('main.export_csv'), 'export') }}
+                {{ nav_link(url_for('main.export_excel'), 'export') }}
             </div>
         </nav>
 

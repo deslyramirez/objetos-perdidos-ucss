@@ -1,5 +1,5 @@
-"""Administrator: approves or disapproves reports and is the only one with the monthly panel,
-CSV import and CSV export.
+"""Administrator: approves or disapproves reports, answers deletion requests (deactivate or
+delete) and is the only one with the monthly panel, import and Excel export.
 
 The account (usuario «admin», admin@gmail.com) is created on start when ADMIN_PASSWORD is set
 in the server environment (the WSGI file), so no password ever lives in the repository.
@@ -71,6 +71,10 @@ def ensure_moderation_columns(engine):
             )
         if item_columns and "rejection_reason" not in item_columns:
             conn.exec_driver_sql("ALTER TABLE item ADD COLUMN rejection_reason VARCHAR(300)")
+        if item_columns and "deletion_requested_at" not in item_columns:
+            conn.exec_driver_sql("ALTER TABLE item ADD COLUMN deletion_requested_at DATETIME")
+        if item_columns and "deletion_reason" not in item_columns:
+            conn.exec_driver_sql("ALTER TABLE item ADD COLUMN deletion_reason VARCHAR(300)")
 
 
 def create_admin_account(password=None, username=ADMIN_USERNAME, email=ADMIN_EMAIL):
@@ -116,10 +120,18 @@ def pending_count():
     return db.session.query(func.count(Item.id)).filter(Item.approval == "pending").scalar()
 
 
+def deletion_request_filter():
+    return db.and_(Item.deletion_requested_at.isnot(None), Item.approval != "inactive")
+
+
+def deletion_request_count():
+    return db.session.query(func.count(Item.id)).filter(deletion_request_filter()).scalar()
+
+
 @admin.app_context_processor
 def inject_admin():
     if is_admin(current_user):
-        return {"is_admin": True, "moderation_count": pending_count()}
+        return {"is_admin": True, "moderation_count": pending_count() + deletion_request_count()}
     return {"is_admin": False, "moderation_count": 0}
 
 
@@ -128,6 +140,8 @@ def inject_admin():
 # -----------------------------
 TABS = {
     "pendientes": "Pendientes",
+    "eliminacion": "Solicitudes de eliminación",
+    "desactivadas": "Desactivadas",
     "desaprobadas": "Desaprobadas",
 }
 
@@ -142,14 +156,25 @@ def moderation():
     base = Item.query.options(joinedload(Item.user))
     if tab == "pendientes":
         items = base.filter(Item.approval == "pending").order_by(Item.created_at, Item.id).all()
+    elif tab == "eliminacion":
+        items = (
+            base.filter(deletion_request_filter())
+            .order_by(Item.deletion_requested_at, Item.id)
+            .all()
+        )
+    elif tab == "desactivadas":
+        items = base.filter(Item.approval == "inactive").order_by(Item.id.desc()).all()
     else:
         items = base.filter(Item.approval == "rejected").order_by(Item.id.desc()).all()
 
+    def count(*conditions):
+        return db.session.query(func.count(Item.id)).filter(*conditions).scalar()
+
     tab_counts = {
         "pendientes": pending_count(),
-        "desaprobadas": db.session.query(func.count(Item.id))
-        .filter(Item.approval == "rejected")
-        .scalar(),
+        "eliminacion": deletion_request_count(),
+        "desactivadas": count(Item.approval == "inactive"),
+        "desaprobadas": count(Item.approval == "rejected"),
     }
     return render_template(
         "admin/moderation.html",
@@ -198,3 +223,68 @@ def reject(item_id):
     item.rejection_reason = reason or None
     _save(f"«{item.name}» fue desaprobado y ya no es visible para la comunidad.", "info")
     return _back("pendientes")
+
+
+# -----------------------------
+# DELETION REQUESTS: DEACTIVATE, REACTIVATE, KEEP OR DELETE
+# -----------------------------
+def _clear_deletion_request(item):
+    item.deletion_requested_at = None
+    item.deletion_reason = None
+
+
+@admin.route("/item/<int:item_id>/desactivar", methods=["POST"])
+@admin_required
+def deactivate(item_id):
+    """Hide the report from the community but keep it in the history and the Excel summary."""
+    item = db.get_or_404(Item, item_id)
+    item.approval = "inactive"
+    item.deletion_requested_at = None  # the request is answered; the reason stays as a record
+    _save(f"«{item.name}» quedó desactivado: ya no se muestra, pero sigue en el historial y en el Excel.", "info")
+    return _back("eliminacion")
+
+
+@admin.route("/item/<int:item_id>/reactivar", methods=["POST"])
+@admin_required
+def reactivate(item_id):
+    item = db.get_or_404(Item, item_id)
+    item.approval = "approved"
+    item.rejection_reason = None
+    _clear_deletion_request(item)
+    _save(f"«{item.name}» volvió a publicarse.")
+    return _back("desactivadas")
+
+
+@admin.route("/item/<int:item_id>/mantener", methods=["POST"])
+@admin_required
+def keep(item_id):
+    """Turn down a deletion request: the report stays as it was."""
+    item = db.get_or_404(Item, item_id)
+    _clear_deletion_request(item)
+    _save(f"Se rechazó la solicitud: «{item.name}» se mantiene publicado.", "info")
+    return _back("eliminacion")
+
+
+@admin.route("/item/<int:item_id>/eliminar", methods=["POST"])
+@admin_required
+def delete_item(item_id):
+    """Delete for good: the report, its photo and its conversations. It leaves every summary."""
+    from main import _remove_image_file
+
+    item = db.get_or_404(Item, item_id)
+    name, image_filename = item.name, item.image_filename
+    db.session.delete(item)
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception("Could not delete report %s", item_id)
+        flash("No se pudo eliminar el reporte. Intente nuevamente.", "danger")
+        return _back("eliminacion")
+    _remove_image_file(image_filename)
+    flash(f"«{name}» se eliminó definitivamente.", "info")
+    # The report page no longer exists, so never go back to it.
+    target = request.form.get("next") or ""
+    if target.startswith("/item/"):
+        return redirect(url_for("admin.moderation", tab="eliminacion"))
+    return _back("eliminacion")

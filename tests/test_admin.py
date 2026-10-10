@@ -150,7 +150,7 @@ def test_admin_sidebar_has_the_panel_moderation_import_and_export(admin, make_it
     make_item(_carlos(), approval="pending")
     nav = _nav(_text(admin.get("/")))
 
-    for label in ("Panel mensual", "Moderación", "Importar CSV", "Exportar CSV", "Administrador"):
+    for label in ("Panel mensual", "Moderación", "Importar", "Exportar Excel", "Administrador"):
         assert label in nav, label
     assert 'class="nav-badge"' in nav
 

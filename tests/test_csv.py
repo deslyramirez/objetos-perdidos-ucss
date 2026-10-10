@@ -17,7 +17,7 @@ HEADER = [
     "image_filename", "reported_by", "created_at",
 ]
 READ_ERROR = "No se pudo leer el archivo. Verifique que sea un CSV válido."
-MISSING_COLUMNS = "El archivo debe incluir las columnas «name», «location» y «event_date»."
+MISSING_COLUMNS = "El archivo debe incluir las columnas «Objeto», «Lugar» y «Fecha del suceso»"
 BASE = "name,location,event_date"
 
 
@@ -263,7 +263,7 @@ def test_import_page_documents_the_format_in_spanish(maria):
     html = _text(maria.get("/import/csv"))
     body = _main(html)
 
-    assert "Importar CSV" in html.split("</title>")[0]
+    assert "Importar reportes" in html.split("</title>")[0]
     assert re.search(r'<form[^>]*enctype="multipart/form-data"', body)
     assert re.search(r'<form[^>]*method="post"', body, re.IGNORECASE)
     assert 'name="csrf_token"' in body
@@ -274,23 +274,28 @@ def test_import_page_documents_the_format_in_spanish(maria):
     for column in ("quantity", "price"):
         assert f"<code>{column}</code>" not in body, column
     assert "Obligatoria" in body
-    for key, label in (("documents", "Documentos"), ("electronics", "Electrónica"), ("keys", "Llaves"), ("clothing", "Ropa y accesorios"), ("bags", "Mochilas y útiles"), ("other", "Otros")):
-        assert key in body and label in body
-    for key, label in (("lost", "Perdido"), ("found", "Encontrado"), ("returned", "Entregado")):
-        assert key in body and label in body
+    for label in ("Documentos", "Electrónica", "Llaves", "Ropa y accesorios", "Mochilas y útiles", "Otros"):
+        assert label in body
+    for label in ("Perdido", "Encontrado", "Entregado"):
+        assert label in body
     assert "AAAA-MM-DD" in body and "DD/MM/AAAA" in body
     assert "UTF-8" in body
     assert "punto y coma" in body
     assert "2.000" in body
-    assert "name,location,event_date" in body
+    for title in ("Objeto", "Lugar", "Fecha del suceso", "Descripción", "Categoría", "Estado", "Contacto"):
+        assert f"<strong>{title}</strong>" in body, title
+    assert 'href="/import/plantilla"' in body
+    assert 'accept=".xlsx,.csv' in body
 
 
 def test_import_page_actions(maria):
     body = _main(_text(maria.get("/import/csv")))
 
-    assert body.count("btn-primary") == 1
+    # Two primary actions: download the template (step 1) and upload the file.
+    assert body.count("btn-primary") == 2
     assert "Importar archivo" in body
-    assert re.search(r'<a[^>]*href="/export/csv"[^>]*btn-secondary|<a[^>]*btn-secondary[^>]*href="/export/csv"', body)
+    assert "Descargar plantilla" in body
+    assert re.search(r'<a[^>]*href="/export/excel"[^>]*btn-secondary|<a[^>]*btn-secondary[^>]*href="/export/excel"', body)
     assert "Descargar reportes" in body
     assert "Inventario" not in body and "artículo" not in body
 
@@ -617,7 +622,7 @@ def test_import_of_a_header_only_file_warns(maria):
 
 @pytest.mark.parametrize(
     "header",
-    ["nombre,location,event_date", "name,event_date", "name,location", "name", "location,event_date", "name,lugar,fecha"],
+    ["nombres,location,event_date", "name,event_date", "name,location", "name", "location,event_date", "objeto,lugar"],
 )
 def test_import_rejects_files_missing_a_required_column(maria, header):
     response = _upload(maria, _csv(header, "a,b,2026-03-02"))
@@ -678,7 +683,7 @@ def test_import_rejects_oversized_csv_fields(maria):
 def test_import_without_a_file_asks_to_select_one(maria):
     response = maria.post("/import/csv", data={}, follow_redirects=True)
 
-    assert "Seleccione un archivo CSV." in _text(response)
+    assert "Seleccione un archivo Excel (.xlsx) o CSV." in _text(response)
     assert response.request.path == "/import/csv"
 
 
@@ -690,7 +695,7 @@ def test_import_with_an_empty_file_input_asks_to_select_one(maria):
         follow_redirects=True,
     )
 
-    assert "Seleccione un archivo CSV." in _text(response)
+    assert "Seleccione un archivo Excel (.xlsx) o CSV." in _text(response)
 
 
 def test_database_failure_rolls_back_every_row_and_reports_it(maria, monkeypatch):

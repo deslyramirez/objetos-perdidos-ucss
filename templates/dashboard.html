@@ -8,8 +8,8 @@
 {% set k = s.kpis %}
 <div class="flex flex-col gap-5">
   {% call page_header("Panel mensual", s.month_label, "bi-bar-chart-line") %}
-    <a class="btn btn-primary" href="{{ url_for('main.export_csv', mes=s.mes) }}">
-      <i class="bi bi-download" aria-hidden="true"></i> Exportar mes (CSV)
+    <a class="btn btn-primary" href="{{ url_for('main.export_excel', mes=s.mes) }}">
+      <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Exportar mes (Excel)
     </a>
   {% endcall %}
 

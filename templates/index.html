@@ -13,7 +13,7 @@
   {{ page_header("Centro de reportes", "Objetos perdidos, encontrados y entregados en la universidad.", "bi-collection") }}
   {{ empty_state(
       "Aún no hay reportes registrados.",
-      "Use «Nuevo reporte» o «Importar CSV» en el menú lateral para registrar el primero.",
+      "Use «Nuevo reporte» o «Importar» en el menú lateral para registrar el primero.",
       icon="bi-inbox") }}
 {% else %}
   {% set noun = 'reporte' if items.total == 1 else 'reportes' %}

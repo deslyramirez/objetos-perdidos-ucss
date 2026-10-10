@@ -28,7 +28,15 @@
         <div class="min-w-0 md:col-start-2 md:row-start-1 md:row-span-2">
           <p class="detail-eyebrow"><i class="bi {{ CATEGORY_ICONS[cat] }}" aria-hidden="true"></i> {{ item.category|categoria_label if item.category else "Sin categoría" }}</p>
           <h1 class="detail-title">{{ item.name }}</h1>
-          {% if not item.is_approved and (is_owner or admin_view) %}
+          {% if item.is_inactive and (is_owner or admin_view) %}
+          <div class="alert alert-warning mt-3" role="status">
+            <i class="bi bi-archive-fill mt-0.5" aria-hidden="true"></i>
+            <div>
+              <p><strong>Desactivado por el administrador.</strong> Ya no es visible para la comunidad, pero se conserva en el historial y en el resumen en Excel.</p>
+              {% if item.deletion_reason %}<p class="mt-1">Motivo de la solicitud: {{ item.deletion_reason }}</p>{% endif %}
+            </div>
+          </div>
+          {% elif not item.is_approved and (is_owner or admin_view) %}
           <div class="alert {{ 'alert-danger' if item.approval == 'rejected' else 'alert-info' }} mt-3" role="status">
             <i class="bi {{ 'bi-x-octagon-fill' if item.approval == 'rejected' else 'bi-hourglass-split' }} mt-0.5" aria-hidden="true"></i>
             <div>
@@ -41,23 +49,55 @@
             </div>
           </div>
           {% endif %}
+          {% if item.deletion_requested and not item.is_inactive and (is_owner or admin_view) %}
+          <div class="alert alert-warning mt-3" role="status">
+            <i class="bi bi-trash3-fill mt-0.5" aria-hidden="true"></i>
+            <div>
+              <p><strong>Eliminación solicitada</strong> el {{ item.deletion_requested_at|fecha_hora }}.
+                {{ 'El administrador decidirá si lo desactiva o lo elimina.' if is_owner else 'Decida si lo desactiva (se conserva en el Excel) o lo elimina.' }}</p>
+              {% if item.deletion_reason %}<p class="mt-1">Motivo: {{ item.deletion_reason }}</p>{% endif %}
+            </div>
+          </div>
+          {% endif %}
           {% if admin_view %}
+          {% set here = url_for('main.view', item_id=item.id) %}
           <div class="admin-tools mt-3">
             <span class="admin-badge"><i class="bi bi-shield-check" aria-hidden="true"></i> Administrador</span>
+            {% if item.is_inactive %}
+            <form method="post" action="{{ url_for('admin.reactivate', item_id=item.id) }}">
+              {{ csrf_field() }}<input type="hidden" name="next" value="{{ here }}">
+              <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Reactivar</button>
+            </form>
+            {% else %}
             {% if not item.is_approved %}
             <form method="post" action="{{ url_for('admin.approve', item_id=item.id) }}">
-              {{ csrf_field() }}<input type="hidden" name="next" value="{{ url_for('main.view', item_id=item.id) }}">
+              {{ csrf_field() }}<input type="hidden" name="next" value="{{ here }}">
               <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check2-circle" aria-hidden="true"></i> Aprobar</button>
             </form>
             {% endif %}
+            {% if item.deletion_requested %}
+            <form method="post" action="{{ url_for('admin.keep', item_id=item.id) }}">
+              {{ csrf_field() }}<input type="hidden" name="next" value="{{ here }}">
+              <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-hand-thumbs-up" aria-hidden="true"></i> Mantener publicado</button>
+            </form>
+            {% endif %}
+            <form method="post" action="{{ url_for('admin.deactivate', item_id=item.id) }}">
+              {{ csrf_field() }}<input type="hidden" name="next" value="{{ here }}">
+              <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-archive" aria-hidden="true"></i> Desactivar</button>
+            </form>
             {% if item.approval != 'rejected' %}
             <form method="post" action="{{ url_for('admin.reject', item_id=item.id) }}" class="admin-tools__reject">
-              {{ csrf_field() }}<input type="hidden" name="next" value="{{ url_for('main.view', item_id=item.id) }}">
+              {{ csrf_field() }}<input type="hidden" name="next" value="{{ here }}">
               <label class="sr-only" for="reject-reason">Motivo</label>
               <input id="reject-reason" class="form-input" name="reason" maxlength="300" placeholder="Motivo (opcional)">
               <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-x-circle" aria-hidden="true"></i> Desaprobar</button>
             </form>
             {% endif %}
+            {% endif %}
+            <form method="post" action="{{ url_for('admin.delete_item', item_id=item.id) }}" onsubmit='return confirm({{ ("¿Eliminar definitivamente «" ~ item.name ~ "»? Se borra con su foto y sus mensajes, y ya no aparecerá en el resumen en Excel. Si solo quiere ocultarlo, use «Desactivar».")|tojson }});'>
+              {{ csrf_field() }}<input type="hidden" name="next" value="{{ here }}">
+              <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-trash3" aria-hidden="true"></i> Eliminar definitivamente</button>
+            </form>
           </div>
           {% endif %}
 
@@ -114,7 +154,12 @@
             <p class="item-description text-slate-700">{{ item.description or "Sin descripción." }}</p>
           </section>
 
-          {% if is_owner %}
+          {% if is_owner and item.is_inactive and not admin_view %}
+          <p class="mt-8 text-sm text-slate-500">
+            <i class="bi bi-archive" aria-hidden="true"></i> Este reporte fue desactivado y ya no se puede modificar.
+          </p>
+
+          {% elif is_owner %}
           <div class="mt-8 flex flex-wrap items-center gap-3">
             {% if not item.is_returned %}
             <form method="post" action="{{ url_for('main.mark_returned', item_id=item.id) }}" class="inline-block">
@@ -127,8 +172,29 @@
             <a href="{{ url_for('main.edit', item_id=item.id) }}" class="btn btn-secondary">
               <i class="bi bi-pencil" aria-hidden="true"></i> Editar
             </a>
+            {% if admin_view %}
             {{ delete_form(url_for('main.delete', item_id=item.id), 'Eliminar', '¿Desea eliminar el reporte «' ~ item.name ~ '»? Esta acción no se puede deshacer.', 'md') }}
+            {% elif item.deletion_requested %}
+            <form method="post" action="{{ url_for('main.cancel_deletion', item_id=item.id) }}" class="inline-block">
+              {{ csrf_field() }}
+              <button type="submit" class="btn btn-secondary">
+                <i class="bi bi-x-lg" aria-hidden="true"></i> Cancelar solicitud de eliminación
+              </button>
+            </form>
+            {% endif %}
           </div>
+          {% if not admin_view and not item.deletion_requested %}
+          <details class="delete-request mt-4">
+            <summary class="btn btn-danger"><i class="bi bi-trash3" aria-hidden="true"></i> Solicitar eliminación</summary>
+            <form method="post" action="{{ url_for('main.delete', item_id=item.id) }}" class="delete-request__form">
+              {{ csrf_field() }}
+              <p>El administrador recibirá su solicitud y decidirá si desactiva el reporte o lo elimina.</p>
+              <label class="form-label" for="deletion-reason">Motivo (opcional)</label>
+              <input id="deletion-reason" class="form-input" name="reason" maxlength="300" placeholder="Ej.: ya lo recuperé, lo publiqué dos veces…">
+              <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-send" aria-hidden="true"></i> Enviar solicitud</button>
+            </form>
+          </details>
+          {% endif %}
 
           {% else %}
           <p class="mt-8 text-sm text-slate-500">

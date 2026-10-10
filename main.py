@@ -1,4 +1,5 @@
-"""Lost-and-found routes: list with filters, detail, create, edit, delete, mark returned and CSV."""
+"""Lost-and-found routes: list with filters, detail, create, edit, delete request, mark returned,
+Excel export and Excel/CSV import."""
 
 import csv
 import os
@@ -34,6 +35,7 @@ from domain import (
     DEFAULT_STATUS,
     LEGACY_CATEGORY_MAP,
     STATUS_LABELS,
+    SUMMARY_APPROVALS,
     default_conversation_kind,
     month_bounds,
     parse_month,
@@ -50,12 +52,15 @@ from forms import (
     EditItemForm,
 )
 from admin import admin_required, is_admin
+from excel import XLSX_MIMETYPE, build_export, build_import_template, read_xlsx_records
 from models import Item, visible_items_filter
-from utils import formato_numero, today_local
+from utils import MONTH_NAMES, _display_zone, formato_numero, today_local
 
 bp = Blueprint("main", __name__, template_folder="templates")
 
 NOT_OWNER = "Solo quien creó el reporte puede modificarlo."
+INACTIVE_LOCKED = "El administrador desactivó este reporte; ya no se puede modificar."
+DELETION_REASON_MAX = 300
 INVALID_FORMAT = "Formato no permitido. Use PNG, JPG, GIF o WEBP."
 INVALID_IMAGE = "El archivo no es una imagen válida."
 
@@ -68,6 +73,19 @@ CSV_HEADER = [
 ]
 CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 CSV_REQUIRED_COLUMNS = ("name", "location", "event_date")
+# Column titles accepted on import (compared without accents, case or a trailing '*'): the English
+# keys of the CSV export and the Spanish titles of the Excel export and template.
+IMPORT_COLUMN_ALIASES = {
+    "name": ("name", "objeto", "nombre", "nombre del objeto"),
+    "location": ("location", "lugar"),
+    "event_date": ("event_date", "fecha del suceso", "fecha"),
+    "description": ("description", "descripcion"),
+    "category": ("category", "categoria"),
+    "status": ("status", "estado"),
+    "contact": ("contact", "contacto"),
+}
+HEADER_SEARCH_ROWS = 10
+XLSX_SIGNATURE = b"PK\x03\x04"
 MAX_IMPORT_ROWS = 2000
 MAX_REPORTED_SKIPS = 5
 
@@ -170,6 +188,9 @@ def _owned_item(item_id, fallback_endpoint):
         if fallback_endpoint == "main.view":
             return item, redirect(url_for("main.view", item_id=item.id))
         return item, redirect(url_for(fallback_endpoint))
+    if item.is_inactive and not is_admin(current_user):
+        flash(INACTIVE_LOCKED, "warning")
+        return item, redirect(url_for("main.view", item_id=item.id))
     return item, None
 
 
@@ -213,9 +234,11 @@ def _read_filters(args):
     return {"q": q, "estado": estado, "categoria": categoria, "mes": mes, "bounds": bounds}
 
 
-def _apply_filters(query, filters, with_status=True):
+def _apply_filters(query, filters, with_status=True, visibility=None):
     # Only published reports, plus the user's own ones while they wait for review.
-    query = query.filter(visible_items_filter(current_user))
+    if visibility is None:
+        visibility = visible_items_filter(current_user)
+    query = query.filter(visibility)
     if filters["q"]:
         pattern = f"%{_escape_like(filters['q'].casefold())}%"
         query = query.filter(
@@ -450,12 +473,17 @@ def edit(item_id):
 # -----------------------------
 # DELETE REPORT (ONLY CREATOR, POST ONLY)
 # -----------------------------
+# The administrator deletes their own reports at once. Everyone else sends a request: the
+# administrator then deactivates the report (kept in the Excel summary) or deletes it.
 @bp.route("/delete/<int:item_id>", methods=["POST"])
 @login_required
 def delete(item_id):
     item, denied = _owned_item(item_id, "main.index")
     if denied is not None:
         return denied
+
+    if not is_admin(current_user):
+        return _request_deletion(item)
 
     image_filename = item.image_filename
     db.session.delete(item)
@@ -470,6 +498,47 @@ def delete(item_id):
     _remove_image_file(image_filename)
     flash("Reporte eliminado correctamente.", "info")
     return redirect(url_for("main.index"))
+
+
+def _request_deletion(item):
+    if item.deletion_requested:
+        flash("Ya había solicitado eliminar este reporte. El administrador la revisará.", "info")
+        return redirect(url_for("main.view", item_id=item.id))
+
+    reason = (request.form.get("reason") or "").strip()[:DELETION_REASON_MAX]
+    item.deletion_requested_at = datetime.utcnow()
+    item.deletion_reason = reason or None
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception("Could not request deletion of report %s", item.id)
+        flash("No se pudo enviar la solicitud. Intente nuevamente.", "danger")
+        return redirect(url_for("main.view", item_id=item.id))
+
+    flash("Solicitud enviada. El administrador decidirá si desactiva o elimina el reporte.", "success")
+    return redirect(url_for("main.view", item_id=item.id))
+
+
+@bp.route("/item/<int:item_id>/cancelar-eliminacion", methods=["POST"])
+@login_required
+def cancel_deletion(item_id):
+    item, denied = _owned_item(item_id, "main.view")
+    if denied is not None:
+        return denied
+
+    if item.deletion_requested:
+        item.deletion_requested_at = None
+        item.deletion_reason = None
+        try:
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            current_app.logger.exception("Could not cancel deletion of report %s", item_id)
+            flash("No se pudo cancelar la solicitud. Intente nuevamente.", "danger")
+            return redirect(url_for("main.view", item_id=item.id))
+        flash("Se canceló la solicitud de eliminación.", "info")
+    return redirect(url_for("main.view", item_id=item.id))
 
 
 # -----------------------------
@@ -546,6 +615,62 @@ def export_csv():
 
 
 # -----------------------------
+# EXPORT EXCEL (FORMATTED, WITH A SUMMARY SHEET)
+# -----------------------------
+def _export_subtitle(filters):
+    parts = []
+    if filters["mes"]:
+        year, month = (int(part) for part in filters["mes"].split("-"))
+        parts.append(f"Periodo: {MONTH_NAMES[month - 1]} de {year}")
+    else:
+        parts.append("Periodo: todos los reportes")
+    if filters["estado"]:
+        parts.append(f"Estado: {STATUS_LABELS[filters['estado']]}")
+    if filters["categoria"]:
+        parts.append(f"Categoría: {CATEGORY_LABELS.get(filters['categoria'], filters['categoria'])}")
+    if filters["q"]:
+        parts.append(f"Búsqueda: «{filters['q']}»")
+    now = datetime.now(timezone.utc).astimezone(_display_zone())
+    parts.append(f"Generado el {now:%d/%m/%Y %H:%M}")
+    return " · ".join(parts)
+
+
+def _local_naive(value):
+    """Stored UTC datetime -> local time without tzinfo (Excel has no time zones)."""
+    aware = value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
+    return aware.astimezone(_display_zone()).replace(tzinfo=None)
+
+
+@bp.route("/export/excel")
+@admin_required
+def export_excel():
+    """Published and deactivated reports: a deleted report is the only one that disappears."""
+    filters = _read_filters(request.args)
+    items = (
+        _apply_filters(
+            Item.query.options(joinedload(Item.user)),
+            filters,
+            visibility=Item.approval.in_(SUMMARY_APPROVALS),
+        )
+        .order_by(Item.event_date.is_(None), Item.event_date, Item.id)
+        .all()
+    )
+    content = build_export(items, _export_subtitle(filters), _local_naive)
+    filename = f"objetos_{filters['mes']}.xlsx" if filters["mes"] else "objetos.xlsx"
+    response = Response(content, content_type=XLSX_MIMETYPE)
+    response.headers.set("Content-Disposition", "attachment", filename=filename)
+    return response
+
+
+@bp.route("/import/plantilla")
+@admin_required
+def import_template():
+    response = Response(build_import_template(today_local()), content_type=XLSX_MIMETYPE)
+    response.headers.set("Content-Disposition", "attachment", filename="plantilla_importar_reportes.xlsx")
+    return response
+
+
+# -----------------------------
 # IMPORT CSV (REPORTS BELONG TO THE CURRENT USER)
 # -----------------------------
 def _fold(text):
@@ -560,6 +685,11 @@ for _key, _label in CATEGORY_LABELS.items():
     CATEGORY_LOOKUP[_fold(_label)] = _key
 for _legacy, _key in LEGACY_CATEGORY_MAP.items():
     CATEGORY_LOOKUP.setdefault(_fold(_legacy), _key)
+
+ALIAS_LOOKUP = {}
+for _key, _aliases in IMPORT_COLUMN_ALIASES.items():
+    for _alias in _aliases:
+        ALIAS_LOOKUP[_fold(_alias)] = _key
 
 STATUS_LOOKUP = {}
 for _key, _label in STATUS_LABELS.items():
@@ -605,6 +735,35 @@ def _detect_delimiter(text):
 
 def _is_blank(record):
     return not any(cell.strip() for cell in record)
+
+
+def _header_columns(record):
+    """Map each known column (name, location...) to its position in a header row."""
+    columns = {}
+    for position, title in enumerate(record):
+        key = ALIAS_LOOKUP.get(_fold(title.replace("*", "")))
+        if key is not None:
+            columns.setdefault(key, position)
+    return columns
+
+
+def _find_header(records):
+    """Return (index, columns) of the header: the first row, among the first non-blank ones,
+    that names every required column. A title above the table (Excel export, template) is fine."""
+    first = None
+    seen = 0
+    for index, record in enumerate(records):
+        if _is_blank(record):
+            continue
+        columns = _header_columns(record)
+        if first is None:
+            first = (index, columns)
+        if all(column in columns for column in CSV_REQUIRED_COLUMNS):
+            return index, columns
+        seen += 1
+        if seen >= HEADER_SEARCH_ROWS:
+            break
+    return first if first is not None else (None, {})
 
 
 def _unescape_formula_guard(text):
@@ -700,24 +859,28 @@ def import_csv():
 
     upload = request.files.get("file")
     if not _has_upload(upload):
-        return _import_error("Seleccione un archivo CSV.")
+        return _import_error("Seleccione un archivo Excel (.xlsx) o CSV.")
 
-    text = _decode_csv(upload.stream.read())
-    if text is None:
-        return _import_error("No se pudo leer el archivo. Verifique que sea un CSV válido.")
+    raw = upload.stream.read()
+    if raw.startswith(XLSX_SIGNATURE) or upload.filename.lower().endswith(".xlsx"):
+        records = read_xlsx_records(raw)
+        if records is None:
+            return _import_error("No se pudo leer el archivo. Verifique que sea un Excel (.xlsx) válido.")
+    else:
+        text = _decode_csv(raw)
+        if text is None:
+            return _import_error("No se pudo leer el archivo. Verifique que sea un CSV válido.")
+        try:
+            records = list(csv.reader(StringIO(text, newline=""), delimiter=_detect_delimiter(text)))
+        except csv.Error:
+            return _import_error("No se pudo leer el archivo. Verifique que sea un CSV válido.")
 
-    try:
-        records = list(csv.reader(StringIO(text, newline=""), delimiter=_detect_delimiter(text)))
-    except csv.Error:
-        return _import_error("No se pudo leer el archivo. Verifique que sea un CSV válido.")
-
-    header_index = next((i for i, record in enumerate(records) if not _is_blank(record)), None)
-    columns = {}
-    if header_index is not None:
-        for position, title in enumerate(records[header_index]):
-            columns.setdefault(title.strip().lower(), position)
+    header_index, columns = _find_header(records)
     if any(column not in columns for column in CSV_REQUIRED_COLUMNS):
-        return _import_error("El archivo debe incluir las columnas «name», «location» y «event_date».")
+        return _import_error(
+            "El archivo debe incluir las columnas «Objeto», «Lugar» y «Fecha del suceso» "
+            "(o «name», «location» y «event_date»). Use la plantilla para no equivocarse."
+        )
 
     # Row numbers follow the spreadsheet: the header is row 1, blank lines still count.
     data_rows = [

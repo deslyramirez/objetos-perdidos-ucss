@@ -30,7 +30,7 @@ NAV_LABELS = (
     "Nuevo reporte",
     "Mensajes",
 )
-ADMIN_NAV_LABELS = ("Panel mensual", "Moderación", "Importar CSV", "Exportar CSV")
+ADMIN_NAV_LABELS = ("Panel mensual", "Moderación", "Importar", "Exportar Excel")
 
 REMOVED_NAV_LABELS = ("Buscar", "Agregar artículo", "Inventario")
 

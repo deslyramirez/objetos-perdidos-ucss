@@ -208,6 +208,9 @@ def test_empty_inbox_explains_how_to_start(maria):
 
 def test_deleting_the_report_deletes_its_conversations(carlos, maria, report):
     _start(maria, report)
+    # Only the administrator deletes for good; a regular author sends a request instead.
+    report.user.is_admin = True
+    db.session.commit()
 
     carlos.post(f"/delete/{report.id}")
 

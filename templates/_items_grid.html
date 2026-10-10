@@ -34,7 +34,9 @@
         {% endif %}
         <span class="object-card__status">{{ status_badge(item.status) }}</span>
         {% if item.approval == 'pending' %}<span class="approval-flag approval--pending"><i class="bi bi-hourglass-split" aria-hidden="true"></i> En revisión</span>
-        {% elif item.approval == 'rejected' %}<span class="approval-flag approval--rejected"><i class="bi bi-x-octagon" aria-hidden="true"></i> Desaprobado</span>{% endif %}
+        {% elif item.approval == 'rejected' %}<span class="approval-flag approval--rejected"><i class="bi bi-x-octagon" aria-hidden="true"></i> Desaprobado</span>
+        {% elif item.approval == 'inactive' %}<span class="approval-flag approval--inactive"><i class="bi bi-archive" aria-hidden="true"></i> Desactivado</span>
+        {% elif item.deletion_requested %}<span class="approval-flag approval--deletion"><i class="bi bi-trash3" aria-hidden="true"></i> Eliminación solicitada</span>{% endif %}
       </div>
       <div class="object-card__body">
         <h2 class="object-card__title">

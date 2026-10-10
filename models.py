@@ -69,11 +69,24 @@ class Item(db.Model):
     approval = db.Column(db.String(20), nullable=False, default="pending", server_default="approved")
     rejection_reason = db.Column(db.String(300), nullable=True)
 
+    # A regular user cannot delete a report: they ask, and the administrator deactivates it
+    # (kept in the history and in the Excel summary) or deletes it for good.
+    deletion_requested_at = db.Column(db.DateTime, nullable=True)
+    deletion_reason = db.Column(db.String(300), nullable=True)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     @property
     def is_approved(self):
         return self.approval == "approved"
+
+    @property
+    def is_inactive(self):
+        return self.approval == "inactive"
+
+    @property
+    def deletion_requested(self):
+        return self.deletion_requested_at is not None
 
     @property
     def is_returned(self):

@@ -7,7 +7,7 @@
 {% block title %}Moderación{% endblock %}
 
 {% block content %}
-{{ page_header("Moderación", "Apruebe o desapruebe las publicaciones antes de que la comunidad las vea.", "bi-shield-check") }}
+{{ page_header("Moderación", "Apruebe las publicaciones nuevas y atienda las solicitudes de eliminación.", "bi-shield-check") }}
 
 <nav class="chip-row mb-6" aria-label="Estados de moderación">
   {% for key, label in tabs.items() %}
@@ -18,6 +18,8 @@
 {% if not items %}
   {% set texts = {
     'pendientes': ('No hay publicaciones pendientes.', 'Cuando un usuario registre un objeto, aparecerá aquí para que lo apruebe.'),
+    'eliminacion': ('No hay solicitudes de eliminación.', 'Cuando un usuario pida eliminar uno de sus reportes, aparecerá aquí.'),
+    'desactivadas': ('No hay publicaciones desactivadas.', 'Los reportes que desactive se ocultan a la comunidad, pero siguen en el resumen en Excel.'),
     'desaprobadas': ('No hay publicaciones desaprobadas.', 'Las publicaciones que desapruebe se listarán aquí.')
   } %}
   {{ empty_state(texts[tab][0], texts[tab][1], icon='bi-check2-all') }}
@@ -48,7 +50,42 @@
       {% if tab == 'desaprobadas' and item.rejection_reason %}
       <p class="moderation-card__desc"><strong>Motivo:</strong> {{ item.rejection_reason }}</p>
       {% endif %}
+      {% if tab == 'eliminacion' %}
+      <p class="moderation-card__request">
+        <i class="bi bi-trash3" aria-hidden="true"></i>
+        Solicitó eliminarlo el {{ item.deletion_requested_at|fecha_hora }}{% if item.deletion_reason %} · <strong>Motivo:</strong> {{ item.deletion_reason }}{% else %} · sin motivo indicado{% endif %}
+      </p>
+      {% elif tab == 'desactivadas' and item.deletion_reason %}
+      <p class="moderation-card__desc"><strong>Motivo de la solicitud:</strong> {{ item.deletion_reason }}</p>
+      {% endif %}
 
+      {% set delete_confirm = "¿Eliminar definitivamente «" ~ item.name ~ "»? Se borra con su foto y sus mensajes, y ya no aparecerá en el resumen en Excel. Si solo quiere ocultarlo, use «Desactivar»." %}
+      {% if tab in ('eliminacion', 'desactivadas') %}
+      <div class="moderation-card__actions">
+        {% if tab == 'eliminacion' %}
+        <form method="post" action="{{ url_for('admin.deactivate', item_id=item.id) }}">
+          {{ csrf_field() }}<input type="hidden" name="next" value="{{ here }}">
+          <button type="submit" class="btn btn-primary btn-sm" title="Se oculta, pero sigue en el historial y en el Excel"><i class="bi bi-archive" aria-hidden="true"></i> Desactivar</button>
+        </form>
+        <form method="post" action="{{ url_for('admin.keep', item_id=item.id) }}">
+          {{ csrf_field() }}<input type="hidden" name="next" value="{{ here }}">
+          <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-hand-thumbs-up" aria-hidden="true"></i> Mantener publicado</button>
+        </form>
+        {% else %}
+        <form method="post" action="{{ url_for('admin.reactivate', item_id=item.id) }}">
+          {{ csrf_field() }}<input type="hidden" name="next" value="{{ here }}">
+          <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Reactivar</button>
+        </form>
+        {% endif %}
+        <form method="post" action="{{ url_for('admin.delete_item', item_id=item.id) }}" onsubmit='return confirm({{ delete_confirm|tojson }});'>
+          {{ csrf_field() }}<input type="hidden" name="next" value="{{ here }}">
+          <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-trash3" aria-hidden="true"></i> Eliminar definitivamente</button>
+        </form>
+      </div>
+      {% if tab == 'eliminacion' %}
+      <p class="moderation-card__hint"><i class="bi bi-info-circle" aria-hidden="true"></i> «Desactivar» lo oculta pero lo conserva en el Excel; «Eliminar» lo borra de todo.</p>
+      {% endif %}
+      {% else %}
       <div class="moderation-card__actions">
         <form method="post" action="{{ url_for('admin.approve', item_id=item.id) }}">
           {{ csrf_field() }}<input type="hidden" name="next" value="{{ here }}">
@@ -63,6 +100,7 @@
         </form>
         {% endif %}
       </div>
+      {% endif %}
     </div>
   </li>
   {% endfor %}

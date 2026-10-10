@@ -34,7 +34,8 @@ La aplicación usa SQLite por defecto y crea o actualiza la base de datos local 
 - Registro de objetos con nombre, descripción, categoría, lugar, fecha del suceso, estado, contacto y fotografía.
 - Galería de reportes, búsqueda y filtros por estado, categoría y mes.
 - Consulta pública para cualquier persona autenticada y acciones de modificación reservadas a la persona creadora.
-- Importación y exportación CSV.
+- Exportación a Excel con formato (hoja de reportes y hoja de resumen) e importación desde una plantilla de Excel o CSV.
+- Solicitudes de eliminación: el usuario solicita y el administrador desactiva el reporte (se conserva en el Excel) o lo elimina definitivamente.
 - Panel mensual con totales de reportes, estados, evolución diaria, categorías, lugares y reportes recientes.
 - Exportación de los reportes correspondientes al mes seleccionado.
 
@@ -63,7 +64,7 @@ No existen roles adicionales: todas las personas autenticadas ven todos los repo
 
 ## Panel mensual y exportación
 
-El panel está disponible en `/dashboard/` y recibe el mes mediante `?mes=YYYY-MM`. Si no se indica un mes, muestra el mes actual según la configuración de zona horaria. Los indicadores y gráficos se calculan usando la fecha del suceso, y el enlace **Exportar mes** genera un archivo con nombre `objetos_YYYY-MM.csv`.
+El panel está disponible en `/dashboard/` y recibe el mes mediante `?mes=YYYY-MM`. Si no se indica un mes, muestra el mes actual según la configuración de zona horaria. Los indicadores y gráficos se calculan usando la fecha del suceso, y el enlace **Exportar mes** genera un archivo Excel con nombre `objetos_YYYY-MM.xlsx`.
 
 El contrato de datos CSV conserva encabezados en inglés para facilitar el intercambio con otras herramientas:
 

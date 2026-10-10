@@ -2521,6 +2521,14 @@ body.app-shell .app-sidebar .app-nav-link.is-active::before { left: -.5rem; }
 .approval-flag { position: absolute; left: .6rem; bottom: .6rem; z-index: 2; display: inline-flex; align-items: center; gap: .3rem; padding: .2rem .55rem; border-radius: 999px; font-size: .72rem; font-weight: 800; box-shadow: 0 .3rem .8rem rgba(0,0,0,.12); }
 .approval--pending { background: #e8f1fb; color: #1d4f86; }
 .approval--rejected { background: #fdecec; color: #a52235; }
+.approval--inactive { background: #eef1f4; color: #4a5866; }
+.approval--deletion { background: #fff1e6; color: #a2470f; }
+
+.delete-request > summary { list-style: none; cursor: pointer; width: fit-content; }
+.delete-request > summary::-webkit-details-marker { display: none; }
+.delete-request[open] > summary { margin-bottom: .7rem; }
+.delete-request__form { display: grid; gap: .5rem; max-width: 30rem; padding: .9rem 1rem; border: 1px solid #f3c9c9; border-radius: .8rem; background: #fff8f8; color: #5b3a3a; font-size: .9rem; }
+.delete-request__form .btn { width: fit-content; }
 
 .chip-row { display: flex; flex-wrap: wrap; gap: .5rem; }
 .moderation-list { display: grid; gap: .8rem; }
@@ -2529,6 +2537,8 @@ body.app-shell .app-sidebar .app-nav-link.is-active::before { left: -.5rem; }
 .moderation-card__body { display: grid; gap: .35rem; min-width: 0; flex: 1; }
 .moderation-card__title { color: #123e55; font-size: 1.05rem; font-weight: 800; }
 .moderation-card__title:hover { text-decoration: underline; }
+.moderation-card__request { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; width: fit-content; padding: .35rem .7rem; border-radius: .6rem; background: #fff1e6; color: #8a3d0c; font-size: .86rem; }
+.moderation-card__hint { color: #64748b; font-size: .8rem; }
 .moderation-card__meta { color: var(--color-slate-600); font-size: .82rem; }
 .moderation-card__desc { color: var(--color-slate-700); font-size: .88rem; }
 .moderation-card__actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-top: .35rem; }
@@ -2569,3 +2579,9 @@ body.app-shell .app-topnav .nav-badge { margin-left: .1rem; }
   body.app-shell .app-topnav .app-nav-link .bi { font-size: 1.15rem; }
   body.app-shell .app-topnav .nav-badge { position: absolute; top: .15rem; right: calc(50% - 1.6rem); margin: 0; }
 }
+
+/* Import page: three steps (template, fill in, upload). */
+.import-steps { display: grid; gap: .8rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+.import-step { display: flex; gap: .8rem; padding: 1rem; border: 1px solid #dce9ee; border-radius: 1rem; background: #fff; color: #475569; font-size: .88rem; }
+.import-step__num { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 999px; background: #c27a16; color: #fff; font-weight: 800; }
+.import-step__title { margin-bottom: .2rem; color: #123e55; font-size: .98rem; font-weight: 800; }

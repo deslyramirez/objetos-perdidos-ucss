@@ -106,4 +106,9 @@ APPROVAL_LABELS = {
     "pending": "En revisión",
     "approved": "Publicado",
     "rejected": "Desaprobado",
+    "inactive": "Desactivado",
 }
+
+# Reports that count in the monthly panel and in the Excel summary. A deactivated report is
+# hidden from the community but keeps its place in the history; only deleting removes it.
+SUMMARY_APPROVALS = ("approved", "inactive")

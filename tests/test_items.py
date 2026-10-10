@@ -704,7 +704,9 @@ def test_view_owner_actions(maria, owned_item):
     assert "Marcar como entregado" in returned.group(1)
     assert "btn-primary" in returned.group(1)
     assert body.count("btn-primary") == 1
-    assert body.count("btn-danger") == 1
+    # «Solicitar eliminación» opens the request form with its «Enviar solicitud» button.
+    assert body.count("btn-danger") == 2
+    assert "Solicitar eliminación" in body
     assert NOT_OWNER not in body
 
 
@@ -715,7 +717,8 @@ def test_view_delete_is_a_post_form_naming_the_object_and_there_is_no_get_delete
     assert form is not None
     assert re.search(r'method="post"', form.group(0), re.IGNORECASE)
     assert 'name="csrf_token"' in form.group(1)
-    assert "Mochila azul" in _confirm_message(form.group(0))
+    assert 'name="reason"' in form.group(1)
+    assert "Enviar solicitud" in form.group(1)
     assert not re.search(r'<a[^>]*href="[^"]*/delete/', body)
     assert maria.get(f"/delete/{owned_item.id}").status_code == 405
 
@@ -961,9 +964,77 @@ def test_edit_of_a_missing_report_is_404(maria):
 
 
 # --- delete ------------------------------------------------------------------
+# A regular user only asks; the administrator's own reports are deleted at once.
+
+
+def _make_admin(user):
+    user.is_admin = True
+    db.session.commit()
+
+
+def test_delete_by_a_user_sends_a_request_and_keeps_the_report(app, maria, maria_user, make_item, png_bytes):
+    _put_file(app, "1_foto.png", png_bytes)
+    item = make_item(maria_user, name="Con foto", image_filename="1_foto.png")
+
+    response = maria.post(f"/delete/{item.id}", data={"reason": "Ya lo recuperé"}, follow_redirects=True)
+    html = _text(response)
+
+    assert response.request.path == f"/item/{item.id}"
+    assert "Solicitud enviada." in html
+    assert "Eliminación solicitada" in html and "Ya lo recuperé" in html
+    assert "Cancelar solicitud de eliminación" in html
+    stored = db.session.get(Item, item.id)
+    assert stored.deletion_requested_at is not None
+    assert stored.deletion_reason == "Ya lo recuperé"
+    assert _stored_files(app) == ["1_foto.png"]
+
+
+def test_a_second_request_changes_nothing(maria, maria_user, make_item):
+    item = make_item(maria_user, name="Repetido")
+    maria.post(f"/delete/{item.id}", data={"reason": "primera"})
+
+    response = maria.post(f"/delete/{item.id}", data={"reason": "segunda"}, follow_redirects=True)
+
+    assert "Ya había solicitado eliminar este reporte." in _text(response)
+    assert db.session.get(Item, item.id).deletion_reason == "primera"
+
+
+def test_the_owner_can_cancel_the_request(maria, maria_user, make_item):
+    item = make_item(maria_user, name="Me arrepentí")
+    maria.post(f"/delete/{item.id}")
+
+    response = maria.post(f"/item/{item.id}/cancelar-eliminacion", follow_redirects=True)
+
+    assert "Se canceló la solicitud de eliminación." in _text(response)
+    assert db.session.get(Item, item.id).deletion_requested_at is None
+    assert "Solicitar eliminación" in _text(response)
+
+
+def test_only_the_owner_can_cancel_a_request(maria, carlos, maria_user, make_item):
+    item = make_item(maria_user, name="Ajeno")
+    maria.post(f"/delete/{item.id}")
+
+    carlos.post(f"/item/{item.id}/cancelar-eliminacion")
+
+    assert db.session.get(Item, item.id).deletion_requested_at is not None
+
+
+def test_a_deactivated_report_cannot_be_changed_by_its_owner(maria, maria_user, make_item):
+    item = make_item(maria_user, name="Archivado", approval="inactive")
+
+    body = _main(_text(maria.get(f"/item/{item.id}")))
+    assert "Desactivado por el administrador." in body
+    assert "fue desactivado y ya no se puede modificar" in body
+    assert f'href="/edit/{item.id}"' not in body
+
+    for path in (f"/edit/{item.id}", f"/delete/{item.id}", f"/item/{item.id}/returned"):
+        response = maria.post(path, follow_redirects=True)
+        assert "El administrador desactivó este reporte" in _text(response), path
+    assert db.session.get(Item, item.id).name == "Archivado"
 
 
 def test_delete_removes_the_report_and_its_photo(app, maria, maria_user, make_item, png_bytes):
+    _make_admin(maria_user)
     _put_file(app, "1_foto.png", png_bytes)
     item = make_item(maria_user, name="Con foto", image_filename="1_foto.png")
 
@@ -978,6 +1049,7 @@ def test_delete_removes_the_report_and_its_photo(app, maria, maria_user, make_it
 
 
 def test_delete_with_a_missing_photo_file_still_succeeds(maria, maria_user, make_item):
+    _make_admin(maria_user)
     item = make_item(maria_user, name="Sin archivo", image_filename="1_fantasma.png")
 
     response = maria.post(f"/delete/{item.id}", follow_redirects=True)
@@ -990,6 +1062,7 @@ def test_delete_never_removes_files_outside_the_upload_folder(app, tmp_path, mar
     outside = tmp_path / "outside.txt"
     outside.write_text("keep me")
     os.makedirs(app.config["ITEM_UPLOAD_FOLDER"])
+    _make_admin(maria_user)
     item = make_item(maria_user, name="Malicioso", image_filename="../outside.txt")
 
     maria.post(f"/delete/{item.id}")
@@ -1006,6 +1079,7 @@ def test_delete_is_post_only(maria, owned_item):
 
 
 def test_delete_database_error_keeps_the_photo_file(app, maria, maria_user, make_item, png_bytes, monkeypatch):
+    _make_admin(maria_user)
     _put_file(app, "1_foto.png", png_bytes)
     item = make_item(maria_user, name="Con foto", image_filename="1_foto.png")
 
@@ -1041,6 +1115,8 @@ def test_delete_of_a_missing_report_is_404(maria):
 
 def test_delete_requires_a_csrf_token(csrf_app, make_csrf_user, make_item, csrf_token):
     user = make_csrf_user("maria", "password123")
+    user.is_admin = True
+    db.session.commit()
     item = make_item(user, name="Protegido")
     client = csrf_app.test_client()
     token = csrf_token(client, "/auth/login")
@@ -1130,6 +1206,8 @@ def test_mark_returned_database_error_keeps_the_status(maria, owned_item, monkey
 
 def test_mark_returned_requires_a_csrf_token(csrf_app, make_csrf_user, make_item, csrf_token):
     user = make_csrf_user("maria", "password123")
+    user.is_admin = True
+    db.session.commit()
     item = make_item(user, name="Protegido")
     client = csrf_app.test_client()
     token = csrf_token(client, "/auth/login")
