@@ -1,14 +1,16 @@
 # Objetos perdidos
 
-Aplicación web en Flask para registrar y consultar objetos perdidos y encontrados dentro de una universidad. Las personas autenticadas pueden consultar todos los reportes, filtrar la información y revisar un panel mensual; únicamente quien creó un reporte puede editarlo, eliminarlo o marcarlo como entregado.
+Aplicación web en Flask para registrar y consultar objetos perdidos y encontrados dentro de una universidad. Las personas autenticadas pueden reportar objetos, consultar los reportes publicados y comunicarse entre sí; un administrador revisa y aprueba los reportes antes de su publicación.
+
+Sistema en línea: [https://desly30.pythonanywhere.com](https://desly30.pythonanywhere.com)
 
 ## Inicio rápido
 
 En Windows PowerShell:
 
 ```powershell
-git clone https://github.com/Rumaisas-islam/inventory-management-flask.git
-cd inventory-management-flask
+git clone https://github.com/deslyramirez/objetos-perdidos-ucss.git
+cd objetos-perdidos-ucss
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
@@ -36,6 +38,8 @@ La aplicación usa SQLite por defecto y crea o actualiza la base de datos local 
 - Consulta pública para cualquier persona autenticada y acciones de modificación reservadas a la persona creadora.
 - Exportación a Excel con formato (hoja de reportes y hoja de resumen) e importación desde una plantilla de Excel o CSV.
 - Solicitudes de eliminación: el usuario solicita y el administrador desactiva el reporte (se conserva en el Excel) o lo elimina definitivamente.
+- Mensajes privados entre usuarios por cada reporte (Es mío / Lo encontré / Consulta), con edición y eliminación de mensajes propios.
+- Moderación: los reportes nuevos o editados quedan En revisión hasta que el administrador los aprueba o desaprueba con motivo.
 - Panel mensual con totales de reportes, estados, evolución diaria, categorías, lugares y reportes recientes.
 - Exportación de los reportes correspondientes al mes seleccionado.
 
@@ -60,7 +64,7 @@ Cada registro representa un reporte de un objeto perdido o encontrado en el cont
 | Contacto | Correo electrónico o teléfono opcional para coordinar la entrega. |
 | Fotografía | Imagen opcional del objeto. |
 
-No existen roles adicionales: todas las personas autenticadas ven todos los reportes. Solo la persona creadora puede editar, eliminar o marcar como entregado su reporte.
+Existen dos roles. El usuario registra reportes, consulta los publicados y envía mensajes; solo la persona creadora puede editar o marcar como entregado su reporte. El administrador modera los reportes, atiende las solicitudes de eliminación, revisa el panel mensual y realiza la importación y exportación. La cuenta de administrador se crea al iniciar si se define la variable `ADMIN_PASSWORD`.
 
 ## Panel mensual y exportación
 
@@ -83,19 +87,23 @@ La configuración se define mediante variables de entorno:
 | `SECRET_KEY` | Clave de firma de sesiones y formularios. | Clave de desarrollo local; debe definirse fuera de desarrollo. |
 | `FLASK_DEBUG` | Activa el modo de depuración cuando vale `1`. | Desactivado. |
 | `DISPLAY_TIMEZONE` | Zona usada para mostrar fechas y seleccionar el mes actual. | `UTC`. |
+| `ADMIN_PASSWORD` | Contraseña inicial de la cuenta de administrador. | Sin definir; no se crea la cuenta. |
 
 La aplicación limita las cargas a 5 MB y guarda las fotografías en `static/uploads` y los avatares en `static/avatars`. No se requiere una configuración adicional para SQLite durante el desarrollo local.
 
 ## Estructura del proyecto
 
 ```text
-inventory-management-flask/
+objetos-perdidos-ucss/
 ├── app.py                 # Fábrica de la aplicación y configuración de errores
 ├── auth.py                # Registro, autenticación y cierre de sesión
 ├── config.py              # Configuración y rutas locales
 ├── dashboard.py           # Panel y exportación mensual
 ├── domain.py              # Categorías, estados y utilidades del dominio
 ├── forms.py               # Formularios y validaciones
+├── messages.py            # Mensajes privados entre usuarios
+├── admin.py               # Moderación y solicitudes de eliminación
+├── excel.py               # Exportación e importación en Excel
 ├── main.py                # Reportes, búsqueda e importación/exportación
 ├── models.py              # Modelos persistentes
 ├── profile.py             # Perfil, avatar y contraseña
@@ -118,17 +126,19 @@ inventory-management-flask/
 ## Limitaciones conocidas
 
 - La interfaz se sirve con Tailwind Play CDN, por lo que no incluye un proceso de compilación para producción.
-- La aplicación está preparada para SQLite local; no se documenta aquí un despliegue concreto ni características de infraestructura no verificadas.
+- La aplicación usa SQLite y está desplegada en PythonAnywhere (plan gratuito).
 - Las imágenes de `screenshots/` muestran la interfaz anterior y no se han regenerado después de la conversión al dominio de objetos perdidos.
 
 ## Capturas de pantalla
 
 Las capturas históricas están disponibles en [`screenshots/`](screenshots/). Incluyen las pantallas de inicio de sesión, registro, perfil, panel y formularios de la interfaz anterior.
 
-## Licencia
-
-Este proyecto se distribuye bajo la licencia MIT. Consulte [`LICENSE`](LICENSE) para conocer el texto completo.
-
 ## Autoría
 
-Autor: **Rumaisas-islam**. El proyecto original indica que fue realizado en Pakistán.
+Sistema de objetos perdidos desarrollado por Desly Ramírez para el curso Gestión de la Configuración del Software (UCSS), a partir de la base [inventory-management-flask](https://github.com/Rumaisas-islam/inventory-management-flask) de Rumaisa Islam. La adaptación al dominio de objetos perdidos, la moderación, los mensajes, la importación y exportación en Excel y el despliegue son trabajo propio.
+
+## Licencia
+
+El código base original se distribuye bajo la licencia MIT de su autora; consulte [`LICENSE`](LICENSE).
+
+Modificaciones y nuevas funcionalidades © 2026 Desly Ramírez. Todos los derechos reservados sobre estas partes: no se autoriza su copia, modificación ni redistribución sin permiso de la autora.
